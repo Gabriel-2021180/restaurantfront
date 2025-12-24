@@ -1,0 +1,80 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+@media print {
+  /* 1. Ocultar TODO el cuerpo de la aplicación */
+  body * {
+    visibility: hidden;
+  }
+
+  /* 2. Rescatar SOLAMENTE el ticket y sus hijos */
+  #invoice-ticket-container, 
+  #invoice-ticket-container * {
+    visibility: visible;
+  }
+
+  /* 3. Posicionamiento Absoluto: Sacamos el ticket del modal y lo pegamos al papel */
+  #invoice-ticket-container {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important; /* Ancho estándar de ticket */
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: white !important;
+    z-index: 99999 !important; /* Asegura que esté encima de todo */
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* 4. Configurar la página física */
+  @page {
+    size: 80mm auto; /* Ancho fijo, alto automático */
+    margin: 0mm; /* Sin márgenes blancos */
+  }
+
+  /* 5. Asegurar que no salgan botones ni scrollbars */
+  button, .no-print, ::-webkit-scrollbar {
+    display: none !important;
+  }
+}

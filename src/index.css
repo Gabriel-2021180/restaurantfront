@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CSS ESPECÍFICO PARA LA PÁGINA DE IMPRESIÓN */
+@media print {
+  /* Si estamos en la ruta de impresión, aseguramos márgenes 0 */
+  @page {
+    margin: 0;
+    size: 80mm auto;
+  }
+  
+  body {
+    margin: 0;
+    padding: 0;
+    background: white;
+  }
+}

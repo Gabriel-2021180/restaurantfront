@@ -6,6 +6,16 @@ export default {
     const { data } = await api.get(`/analytics/dashboard-kpi?period=${period}`);
     return data;
   },
+  getChannelStats: async (period = 'day') => {
+    const { data } = await api.get(`/analytics/channels?period=${period}`);
+    return data; 
+    // Retorna: { dine_in: {...}, pickup: {...}, winner: 'Mesas' }
+  },
+
+  getDayChannels: async () => {
+    const { data } = await api.get('/analytics/day-channels');
+    return data; // { dine_in: {...}, pickup: {...}, winner: '...' }
+  },
 
   // 2. Rentabilidad
   getTopProfitable: async (limit = 5) => {
@@ -47,5 +57,42 @@ export default {
   getYearlyOverview: async (year) => {
     const { data } = await api.get(`/analytics/yearly-overview?year=${year}`);
     return data;
+  },
+
+  getAuditLog: async () => {
+    const { data } = await api.get('/analytics/audit-log');
+    return data; 
+  },
+
+  // 2. DASHBOARD VISUAL (Cards + Charts)
+  getDashboardVisual: async (period = 'month') => {
+    const { data } = await api.get(`/analytics/dashboard-visual?period=${period}`);
+    return data;
+  },
+
+  // 3. RENDIMIENTO GLOBAL (Tablas Personal)
+  getPerformanceGlobal: async (from, to) => {
+    // Si no hay fechas, el backend usará las por defecto
+    let query = '';
+    if (from && to) query = `?from=${from}&to=${to}`;
+    
+    const { data } = await api.get(`/analytics/performance-global${query}`);
+    return data;
+  },
+
+  getAuditLog: async () => {
+    const { data } = await api.get('/analytics/audit-log');
+    return data; 
+  },
+  getDashboardVisual: async (period = 'month') => {
+    const { data } = await api.get(`/analytics/dashboard-visual?period=${period}`);
+    return data;
+  },
+  getPerformanceGlobal: async (from, to) => {
+    let query = '';
+    if (from && to) query = `?from=${from}&to=${to}`;
+    const { data } = await api.get(`/analytics/performance-global${query}`);
+    return data;
   }
+  
 };

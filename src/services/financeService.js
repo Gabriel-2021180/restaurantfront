@@ -13,8 +13,13 @@ export const financeService = {
             throw error;
         }
     },
-    getAllInvoices: async () => {
-        const { data } = await api.get('/finance/invoices');
+    getAllInvoices: async (type = 'dine_in', from = null, to = null) => {
+        let query = `?type=${type}`;
+        if (from && to) {
+            query += `&from=${from}&to=${to}`;
+        }
+        // Si no mandamos fechas, el backend asume "HOY" (carga rápida)
+        const { data } = await api.get(`/finance/invoices${query}`);
         return data;
     },
 
@@ -48,14 +53,33 @@ export const financeService = {
     createInvoice: async ({ order_id, client_name, client_nit, payment_method }) => {
         const payload = { 
             order_id,
-            payment_method: payment_method || 'EFECTIVO' // Por defecto Efectivo si falla algo
+            payment_method: payment_method || 'EFECTIVO' 
         };
         
+        // Solo enviamos datos si no están vacíos
         if (client_name && client_name.trim().length > 0) payload.client_name = client_name;
         if (client_nit && client_nit.trim().length > 0) payload.client_nit = client_nit;
 
         const response = await api.post('/finance/invoices', payload);
         return response.data;
+    },
+
+    getCashRegisterStatus: async () => {
+        // Si devuelve 200, hay caja. Si devuelve 404, axios lanzará error.
+        const { data } = await api.get('/finance/cash-register/status');
+        return data;
+    },
+
+    // B. Abrir Caja
+    openCashRegister: async (starting_cash) => {
+        const { data } = await api.post('/finance/cash-register/open', { starting_cash });
+        return data;
+    },
+
+    // C. Cerrar Caja
+    closeCashRegister: async ({ cash_count, notes }) => {
+        const { data } = await api.post('/finance/cash-register/close', { cash_count, notes });
+        return data;
     }
 
     

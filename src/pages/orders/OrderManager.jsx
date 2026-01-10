@@ -1,33 +1,37 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query'; // <--- 1. IMPORTAR ESTO
+import { useQueryClient } from '@tanstack/react-query'; 
 import { useOrders } from '../../hooks/useOrders';
 import { useProducts } from '../../hooks/useProducts';
 import { useCategories } from '../../hooks/useCategories';
 import Modal from '../../components/ui/Modal';
-import { ArrowLeft, Search, ShoppingBag, Trash2, Plus, CheckCircle, DollarSign, Loader2, ChefHat } from 'lucide-react';
+import { ArrowLeft, Search, ShoppingBag, Trash2, Plus, DollarSign, Loader2, ChefHat } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 const OrderManager = () => {
   const { orderId } = useParams();
   const navigate = useNavigate();
-  const queryClient = useQueryClient(); // <--- 2. INICIALIZAR EL CLIENTE
+  const queryClient = useQueryClient(); 
   
   const { order, isLoading, addItem, removeItem, sendToCashier, sendToKitchen, isSyncing } = useOrders(orderId);
   const { products } = useProducts();
   const { categories } = useCategories();
 
-  // ... (Tus estados: selectedCategory, searchTerm, etc. MANTENLOS IGUAL) ...
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState('');
 
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'ALL' || p.category_id === selectedCategory;
+    const matchesCategory = 
+        selectedCategory === 'ALL' || 
+        p.category_id === selectedCategory || 
+        p.category?.id === selectedCategory;
+
     return matchesSearch && matchesCategory;
   });
 
@@ -38,11 +42,23 @@ const OrderManager = () => {
     setIsAddModalOpen(true);
   };
 
-  const handleConfirmAdd = async (e) => {
+  const handleConfirmAdd = (e) => {
     e.preventDefault();
     if (!selectedProduct) return;
+    
+    // 1. UX INSTANTÁNEA: CERRAR MODAL PRIMERO
     setIsAddModalOpen(false);
-    await addItem({ product_id: selectedProduct.id, quantity: parseInt(qty) || 1, notes: notes }, selectedProduct);
+    
+    // Validar cantidad
+    const validQty = parseInt(qty);
+    const finalQty = (!validQty || validQty < 1) ? 1 : validQty;
+
+    // 2. LLAMAR AL HOOK EN SEGUNDO PLANO
+    // No usamos 'await' aquí para no bloquear la UI. 
+    // El hook useOrders ya maneja el estado de carga local (items temporales).
+    addItem({ product_id: selectedProduct.id, quantity: finalQty, notes: notes }, selectedProduct);
+
+    // Resetear formulario
     setQty(1);
     setNotes('');
   };
@@ -56,7 +72,7 @@ const OrderManager = () => {
     try {
         const result = await sendToKitchen();
         if (result) {
-            Swal.fire({ title: '¡Enviado!', text: 'La comanda está en cocina.', icon: 'success', timer: 1500, showConfirmButton: false });
+            Swal.fire({ title: '¡Enviado!', text: 'La comanda está en cocina.', icon: 'success', timer: 1000, showConfirmButton: false });
         } else {
             Swal.close();
         }
@@ -65,38 +81,33 @@ const OrderManager = () => {
     }
   };
 
-  // --- AQUÍ ESTÁ EL ARREGLO IMPORTANTE ---
   const handleProcessPayment = async () => {
     if (!order) return;
     
+    // UX RÁPIDA: Confirmación simple
     const result = await Swal.fire({
-        title: '¿Cerrar Mesa?', text: "La mesa quedará libre y la cuenta pasará a Caja.", icon: 'warning',
-        showCancelButton: true, confirmButtonText: 'Sí, liberar', cancelButtonText: 'Cancelar'
+        title: '¿Liberar Mesa?', 
+        text: "La cuenta pasará a Caja.", 
+        icon: 'warning',
+        showCancelButton: true, 
+        confirmButtonText: 'Sí, liberar', 
+        confirmButtonColor: '#10b981',
+        cancelButtonText: 'Cancelar'
     });
 
     if (result.isConfirmed) {
-        Swal.fire({ title: 'Procesando...', didOpen: () => Swal.showLoading() });
+        // Navegamos INMEDIATAMENTE para que se sienta rápido
+        navigate('/tables');
         
+        // Ejecutamos la lógica en segundo plano (Fire and Forget)
         try {
             await sendToCashier(order.id);
-            
-            // 3. ¡EL TRUCO! OBLIGAMOS A RECARGAR LAS MESAS
-            // Así cuando vuelvas a la pantalla de mesas, pedirá datos nuevos sí o sí.
             await queryClient.invalidateQueries(['tables']);
-
-            await Swal.fire({
-                title: 'Mesa Liberada',
-                text: 'Pasa a Caja para emitir la factura.',
-                icon: 'success',
-                timer: 1500,
-                showConfirmButton: false
-            });
-
-            navigate('/tables');
-            
+            // Opcional: Toast no bloqueante
+            const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+            Toast.fire({ icon: 'success', title: 'Mesa liberada para cobro' });
         } catch (error) {
             console.error(error);
-            Swal.fire('Error', 'No se pudo procesar el cierre.', 'error');
         }
     }
   };
@@ -106,7 +117,7 @@ const OrderManager = () => {
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-dark-bg overflow-hidden">
       
-      {/* ... (Todo tu JSX visual SIGUE IGUAL, no cambies nada visual) ... */}
+      {/* IZQUIERDA: MENÚ */}
       <div className="flex-1 flex flex-col border-r dark:border-gray-700">
          <div className="h-16 bg-white dark:bg-dark-card border-b dark:border-gray-700 flex items-center px-4 gap-4 shadow-sm z-10">
             <Link to="/tables" className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full hover:bg-gray-200 transition">
@@ -145,6 +156,7 @@ const OrderManager = () => {
         </div>
       </div>
 
+      {/* DERECHA: RESUMEN */}
       <div className="w-96 bg-white dark:bg-dark-card shadow-xl flex flex-col z-20">
         <div className="h-16 border-b dark:border-gray-700 flex items-center px-6 bg-gray-50 dark:bg-gray-800">
             <ShoppingBag className="text-primary mr-3" />
@@ -155,22 +167,28 @@ const OrderManager = () => {
             {order?.details?.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400 opacity-50"><p>Selecciona productos...</p></div>
             ) : (
-                order?.details?.map((item) => (
-                    <div key={item.id} className={`flex gap-3 p-3 rounded-xl border ${item.isTemp ? 'bg-yellow-50 border-yellow-200 opacity-70' : 'bg-gray-50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-700'}`}>
-                        <div className="w-8 flex items-center justify-center bg-white dark:bg-gray-700 rounded-lg font-bold border">{item.quantity}x</div>
-                        <div className="flex-1">
-                            <div className="flex justify-between">
-                                <p className="font-bold text-sm dark:text-white">{item.product.name}</p>
-                                <p className="font-mono text-sm font-bold text-gray-600 dark:text-gray-300">
-                                    ${(parseFloat(item.price_at_purchase) * item.quantity).toFixed(2)}
-                                </p>
+                order?.details?.map((item) => {
+                    const price = parseFloat(item.price_at_purchase) || 0;
+                    const quantity = parseInt(item.quantity) || 1;
+                    const subtotal = (price * quantity).toFixed(2);
+
+                    return (
+                        <div key={item.id} className={`flex gap-3 p-3 rounded-xl border ${item.isTemp ? 'bg-yellow-50 border-yellow-200 opacity-70' : 'bg-gray-50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-700'}`}>
+                            <div className="w-8 flex items-center justify-center bg-white dark:bg-gray-700 rounded-lg font-bold border">
+                                {quantity}x
                             </div>
-                            {item.notes && <p className="text-xs text-green-600 bg-green-50 px-1 rounded inline-block">{item.notes}</p>}
-                            {item.isTemp && <span className="text-[10px] text-yellow-600 font-bold ml-1 flex items-center gap-1"><Loader2 className="animate-spin w-3 h-3"/> Guardando...</span>}
+                            <div className="flex-1">
+                                <div className="flex justify-between">
+                                    <p className="font-bold text-sm dark:text-white">{item.product?.name || 'Item'}</p>
+                                    <p className="font-mono text-sm font-bold text-gray-600 dark:text-gray-300">${subtotal}</p>
+                                </div>
+                                {item.notes && <p className="text-xs text-green-600 bg-green-50 px-1 rounded inline-block">{item.notes}</p>}
+                                {item.isTemp && <span className="text-[10px] text-yellow-600 font-bold ml-1 flex items-center gap-1"><Loader2 className="animate-spin w-3 h-3"/></span>}
+                            </div>
+                            <button onClick={() => handleDeleteItem(item.id)} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={16}/></button>
                         </div>
-                        <button onClick={() => handleDeleteItem(item.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={16}/></button>
-                    </div>
-                ))
+                    );
+                })
             )}
         </div>
 
@@ -186,7 +204,7 @@ const OrderManager = () => {
                     disabled={isSyncing} 
                     className={`w-full py-3 text-white font-bold rounded-xl shadow transition-transform active:scale-95 flex items-center justify-center gap-2 ${isSyncing ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-800 hover:bg-black'}`}
                 >
-                    {isSyncing ? 'Guardando...' : <><ChefHat size={20} /> Marchar a Cocina</>}
+                    {isSyncing ? 'Sincronizando...' : <><ChefHat size={20} /> Marchar a Cocina</>}
                 </button>
 
                 <button onClick={handleProcessPayment} className="w-full py-3 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow transition-transform active:scale-95 flex items-center justify-center gap-2">
@@ -200,7 +218,17 @@ const OrderManager = () => {
         <form onSubmit={handleConfirmAdd} className="space-y-4">
             <div className="text-center py-4 bg-gray-50 dark:bg-gray-800 rounded-xl"><span className="text-4xl font-black text-primary">${selectedProduct?.price}</span></div>
             <div className="grid grid-cols-3 gap-4">
-                <div><label className="block text-sm font-bold mb-1 dark:text-white">Cant.</label><input type="number" min="1" autoFocus className="w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white text-center font-bold" value={qty} onChange={e => setQty(e.target.value)} /></div>
+                <div>
+                    <label className="block text-sm font-bold mb-1 dark:text-white">Cant.</label>
+                    <input 
+                        type="number" 
+                        min="1" 
+                        autoFocus 
+                        className="w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white text-center font-bold" 
+                        value={qty} 
+                        onChange={e => setQty(e.target.value)} 
+                    />
+                </div>
                 <div className="col-span-2"><label className="block text-sm font-bold mb-1 dark:text-white">Notas</label><textarea rows="1" className="w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white" value={notes} onChange={e => setNotes(e.target.value)} /></div>
             </div>
             <button type="submit" className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-lg mt-4">Confirmar</button>

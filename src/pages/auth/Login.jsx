@@ -56,7 +56,11 @@ const Login = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="email" placeholder="Correo electrónico" required className="w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white" value={email} onChange={e=>setEmail(e.target.value)}/>
           <input type="password" placeholder="Contraseña" required className="w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white" value={password} onChange={e=>setPassword(e.target.value)}/>
-          
+          <div className="flex justify-end mb-4">
+            <Link to="/forgot-password" className="text-sm font-bold text-primary hover:underline">
+                ¿Olvidaste tu contraseña?
+            </Link>
+        </div>
           <button type="submit" disabled={loading} className="w-full py-3 bg-primary text-white font-bold rounded-xl flex justify-center gap-2 hover:bg-primary-dark transition">
             {loading ? <Loader2 className="animate-spin"/> : 'Ingresar'}
           </button>

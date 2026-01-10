@@ -4,23 +4,37 @@ import analyticsService from '../services/analyticsService';
 
 export const useAnalytics = () => {
   const now = new Date();
-  const [kpiPeriod, setKpiPeriod] = useState('month');
+  
+  // FILTROS GLOBALES
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
-  // CONFIGURACIÓN ANTI-SPAM (Evita error 429)
+  // FILTROS ESPECÍFICOS
+  const [kpiPeriod, setKpiPeriod] = useState('month'); // Para las tarjetas de arriba
+  const [channelPeriod, setChannelPeriod] = useState('day'); // NUEVO: Para el VS (Mesas vs Pickup)
+
+  // CONFIGURACIÓN (Cache de 5 min)
   const queryConfig = {
-    staleTime: 1000 * 60 * 5, // 5 minutos de caché
-    retry: false, // No reintentar si falla
-    refetchOnWindowFocus: false // No recargar al cambiar de pestaña
+    staleTime: 1000 * 60 * 5, 
+    retry: false,
+    refetchOnWindowFocus: false 
   };
 
+  // 1. KPIS
   const kpiQuery = useQuery({
     queryKey: ['kpis', kpiPeriod],
     queryFn: () => analyticsService.getKPIs(kpiPeriod),
     ...queryConfig
   });
 
+  // 2. NUEVO: CANALES DE VENTA
+  const channelsQuery = useQuery({
+    queryKey: ['channels', channelPeriod],
+    queryFn: () => analyticsService.getChannelStats(channelPeriod),
+    ...queryConfig
+  });
+
+  // 3. COMPARATIVA AÑOS
   const comparisonQuery = useQuery({
     queryKey: ['year-comparison'],
     queryFn: analyticsService.getYearComparison,
@@ -51,25 +65,22 @@ export const useAnalytics = () => {
     ...queryConfig
   });
 
-  const staffQuery = useQuery({
-    queryKey: ['staff-performance', selectedMonth, selectedYear],
-    queryFn: () => analyticsService.getStaffPerformance(selectedMonth, selectedYear),
-    ...queryConfig
-  });
-
   return {
+    // Estados
     kpiPeriod, setKpiPeriod,
+    channelPeriod, setChannelPeriod, // <--- Exportamos esto para el Dashboard
     selectedMonth, setSelectedMonth,
     selectedYear, setSelectedYear,
 
+    // Datos
     kpis: kpiQuery.data || {},
+    channelsData: channelsQuery.data || null, // <--- Data nueva
     yearComparison: comparisonQuery.data || { data: [] },
     topProfitable: profitableQuery.data || [],
     weeklyPattern: weeklyQuery.data || [],
     topProducts: topProductsQuery.data || [],
     peakHours: peakHoursQuery.data || [],
-    staffPerformance: staffQuery.data || [],
 
-    isLoading: kpiQuery.isLoading || comparisonQuery.isLoading || topProductsQuery.isLoading
+    isLoading: kpiQuery.isLoading || channelsQuery.isLoading
   };
 };

@@ -4,20 +4,18 @@ import { QRCodeSVG } from 'qrcode.react';
 const InvoiceTicket = ({ invoice }) => {
   if (!invoice) return null;
 
-  // 1. EXTRAER CONFIGURACIÓN (Según tu JSON viene en 'business_config')
   const config = invoice.business_config || {}; 
-  
-  // 2. EXTRAER DETALLES (Están en invoice.order.details o invoice.details)
   const order = invoice.order || {};
-  // A veces el backend manda los detalles directos en 'invoice.order.details'
-  const details = Array.isArray(order.details) ? order.details : [];
+  const details = Array.isArray(order.details) ? order.details : (invoice.details || []);
 
-  // Helpers de fecha
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
     return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
   };
+
+  const visualIdentifier = invoice.order_identifier || 
+                           (order.table ? `MESA ${order.table.table_number}` : "PEDIDO MOSTRADOR");
 
   const formatTime = (dateString) => {
     if (!dateString) return '';
@@ -26,136 +24,100 @@ const InvoiceTicket = ({ invoice }) => {
   };
 
   return (
-    <div id="invoice-ticket-container" className="w-[80mm] mx-auto bg-white text-black p-4 font-mono text-[10px] leading-tight shadow-lg">
+    // ID CRÍTICO: invoice-ticket-container
+    <div id="invoice-ticket-container" className="bg-white text-black p-2 font-mono text-[10px] leading-tight w-full mx-auto">
       
-      {/* --- ENCABEZADO --- */}
-      <div className="text-center mb-3">
-        <h1 className="font-bold text-xs uppercase mb-1">{config.name || "NOMBRE RESTAURANTE"}</h1>
-        <p className="uppercase mb-1">CASA MATRIZ</p>
-        <p className="mb-1">{config.address || "Dirección no configurada"}</p>
-        <p className="mb-2">Tel: {config.phone || "S/N"}</p>
+      {/* CABECERA */}
+      <div className="text-center mb-2">
+        <h1 className="font-black text-xs uppercase mb-1">{config.name || "RESTAURANTE"}</h1>
+        <p className="text-[9px] uppercase mb-1">CASA MATRIZ</p>
+        <p className="text-[9px] mb-1">{config.address || "Dirección no configurada"}</p>
+        <p className="text-[9px]">Tel: {config.phone || "S/N"}</p>
         
-        <h2 className="font-bold text-xs mt-3 mb-1">FACTURA</h2>
+        <h2 className="font-bold text-xs border-y border-black border-dashed py-1 my-2">FACTURA</h2>
         
-        <div className="space-y-0.5">
-            <p>(Con Derecho a Crédito Fiscal)</p>
-            <div className="flex justify-between px-1 mt-1">
-                <span>NIT:</span>
-                <span>{config.nit || invoice.nit_emisor}</span>
-            </div>
-            <div className="flex justify-between px-1">
-                <span>FACTURA Nº:</span>
-                <span>{invoice.invoice_number}</span>
-            </div>
-            <div className="flex justify-between px-1">
-                <span>COD. AUT.:</span>
-            </div>
-            <p className="break-all px-1 text-center">{invoice.authorization_code}</p>
+        <div className="text-center space-y-0.5">
+            <p className="mb-1">(Con Derecho a Crédito Fiscal)</p>
+            <div className="flex justify-between"><span>NIT:</span><span>{config.nit || invoice.nit_emisor}</span></div>
+            <div className="flex justify-between"><span>FACTURA Nº:</span><span>{invoice.invoice_number}</span></div>
+            <div className="flex justify-between"><span>COD. AUT.:</span></div>
+            <p className="break-all text-[9px] font-bold">{invoice.authorization_code}</p>
         </div>
       </div>
 
-      <div className="border-b border-dashed border-black my-2"></div>
+      <hr className="border-t border-dashed border-black my-1"/>
 
-      {/* --- DATOS CLIENTE --- */}
-      <div className="space-y-1 mb-2">
+      {/* CLIENTE */}
+      <div className="space-y-1 mb-1">
         <div className="flex justify-between">
             <span>Fecha:</span>
             <span>{formatDate(invoice.transaction_date)} {formatTime(invoice.transaction_date)}</span>
         </div>
-        <div className="flex flex-col">
-            <span className="font-bold">Señor(es):</span>
-            <span className="uppercase">{invoice.client_name || "SIN NOMBRE"}</span>
+        <div className="flex flex-col text-left">
+            <span>Señor(es):</span>
+            <span className="font-bold uppercase">{invoice.client_name || "SIN NOMBRE"}</span>
         </div>
-        <div className="flex gap-2">
-            <span className="font-bold">NIT/CI:</span>
-            <span>{invoice.client_nit || "0"}</span>
-        </div>
+        <div className="flex gap-2"><span>NIT/CI:</span><span className="font-bold">{invoice.client_nit || "0"}</span></div>
       </div>
 
-      <div className="border-b border-dashed border-black my-2"></div>
+      <hr className="border-t border-dashed border-black my-1"/>
 
-      {/* --- DETALLE (AQUÍ ESTABA EL ERROR DE NaN) --- */}
-      <div className="mb-2">
-        <div className="flex font-bold mb-1">
-            <span className="w-6">CNT</span>
-            <span className="flex-1">DETALLE</span>
+      {/* DETALLE COMPACTO */}
+      <div className="mb-1">
+        <div className="flex font-bold mb-1 border-b border-black pb-1">
+            <span className="w-6 text-left">CNT</span>
+            <span className="flex-1 text-left">DETALLE</span>
             <span className="w-10 text-right">SUB.</span>
         </div>
         
         {details.length > 0 ? (
             details.map((item, index) => {
-                // CORRECCIÓN CLAVE: Usamos 'price_at_purchase' que viene del JSON
                 const price = parseFloat(item.price_at_purchase) || 0;
                 const qty = item.quantity || 1;
                 const subtotal = price * qty;
 
                 return (
-                    <div key={index} className="flex mb-1">
-                        <span className="w-6">{qty}</span>
-                        <div className="flex-1 pr-1">
-                            <span className="block uppercase">
-                                {item.product_name || item.product?.name || "Item"}
-                            </span>
-                            {/* Precio unitario pequeño */}
-                            <span className="text-[9px] text-gray-600">
-                                {price.toFixed(2)}
-                            </span>
+                    <div key={index} className="flex mb-1 items-start">
+                        <span className="w-6 text-left">{qty}</span>
+                        <div className="flex-1 px-1 overflow-hidden">
+                            <span className="block uppercase font-bold">{item.product_name || "Item"}</span>
+                            <span className="text-[9px]">{price.toFixed(2)} c/u</span>
                         </div>
-                        <span className="w-10 text-right">
-                            {subtotal.toFixed(2)}
-                        </span>
+                        <span className="w-10 text-right">{subtotal.toFixed(2)}</span>
                     </div>
                 );
             })
         ) : (
-            <div className="text-center italic py-2">Detalles no disponibles</div>
+            <div className="text-center italic">-- Sin Items --</div>
         )}
       </div>
 
-      <div className="border-b border-dashed border-black my-2"></div>
+      <hr className="border-t border-black my-1"/>
 
-      {/* --- TOTALES --- */}
-      <div className="space-y-1 text-right mb-3">
-        <div className="flex justify-between">
-            <span>SUBTOTAL Bs:</span>
-            <span>{parseFloat(invoice.total_amount).toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between">
-            <span>DESCUENTO Bs:</span>
-            <span>0.00</span>
-        </div>
-        <div className="flex justify-between font-bold text-xs mt-1">
-            <span>TOTAL A PAGAR Bs:</span>
+      {/* TOTALES */}
+      <div className="space-y-1 text-right mb-2">
+        <div className="flex justify-between font-black text-xs">
+            <span>TOTAL Bs:</span>
             <span>{parseFloat(invoice.total_amount).toFixed(2)}</span>
         </div>
       </div>
 
-      <div className="mb-4 uppercase text-[9px]">
-        <span className="font-bold">SON: </span>
-        {invoice.literal_amount || "MONTO EN BOLIVIANOS"}
+      <div className="mb-2 uppercase text-[8px] text-left">
+        <span className="font-bold">SON: </span>{invoice.literal_amount || "MONTO EN BOLIVIANOS"}
       </div>
 
-      {/* --- QR Y CODIGO CONTROL --- */}
-      <div className="text-center mb-4">
-        <p className="mb-2">Código de Control: <span className="font-bold">{invoice.control_code || "A1-B2-C3-D4"}</span></p>
-        
+      {/* QR */}
+      <div className="text-center">
+        <p className="mb-1 text-[8px]">Código de Control: <span className="font-bold">{invoice.control_code}</span></p>
         <div className="flex justify-center my-2">
              <QRCodeSVG 
-                value={`https://siat.impuestos.gob.bo/qr?nit=${config.nit || invoice.nit_emisor}&cuf=${invoice.authorization_code}&numero=${invoice.invoice_number}&t=${invoice.total_amount}`} 
+                value={`https://siat.impuestos.gob.bo/qr?nit=${config.nit}&cuf=${invoice.authorization_code}&numero=${invoice.invoice_number}&t=${invoice.total_amount}`} 
                 size={90} 
              />
         </div>
-        
-        <p className="text-[8px] mt-1">FECHA LÍMITE DE EMISIÓN: {formatDate(invoice.deadline_date || "2025-12-31")}</p>
+        <p className="text-[8px] font-bold">LÍMITE: {formatDate(invoice.deadline_date)}</p>
+        <p className="mt-1 text-[7px] italic">"{invoice.legend_law}"</p>
       </div>
-
-      {/* --- LEYENDAS --- */}
-      <div className="text-center text-[8px] space-y-1">
-        <p className="font-bold">{invoice.legend_law}</p>
-        <p className="mt-2 italic">{invoice.legend_rights || "Ley N° 453"}</p>
-        <p className="mt-2">Gracias por su preferencia</p>
-      </div>
-
     </div>
   );
 };

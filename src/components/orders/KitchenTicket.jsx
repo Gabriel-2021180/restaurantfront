@@ -3,67 +3,75 @@ import React from 'react';
 const KitchenTicket = ({ data, batchNumber, sentAt }) => {
   if (!data) return null;
 
-  // Helpers de fecha
   const formatTime = (dateString) => {
     if (!dateString) return '---';
     const date = new Date(dateString);
     return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   };
 
-  // 1. Detectamos items según tu nuevo JSON ({ name, quantity }) o el viejo
   const items = data.items || [];
-  
-  // 2. Título dinámico
-  // Si batchNumber es 0, es "POR MARCHAR". Si no, es "TANDA #X".
-  const title = batchNumber === 0 ? 'NUEVOS ITEMS (Pre-visualización)' : `TANDA #${batchNumber}`;
+  const title = batchNumber === 0 ? 'NUEVOS ITEMS' : `TANDA #${batchNumber}`;
 
   return (
-    <div id="invoice-ticket-container" className="w-[80mm] mx-auto bg-white text-black p-4 font-mono leading-tight shadow-lg border border-gray-200">
+    // Reutilizamos el ID 'invoice-ticket-container' para que el CSS global lo capture y le de el tamaño 80mm
+    <div id="invoice-ticket-container" className="bg-white text-black p-2 font-mono leading-tight w-full mx-auto border-b-2 border-dashed border-black">
       
-      {/* CABECERA */}
-      <div className="text-center border-b-2 border-black pb-2 mb-2">
-        <p className="text-sm font-bold uppercase">ORDEN DE COCINA</p>
-        <h1 className="text-xl font-bold my-1">{title}</h1>
-        <h2 className="text-4xl font-black my-2">MESA {data.table_number}</h2>
+      {/* CABECERA COCINA */}
+      <div className="text-center pb-2 mb-2 border-b-4 border-black">
+        <p className="text-xs font-bold uppercase mb-1">ORDEN DE COCINA</p>
+        <h1 className="text-xl font-black my-1 uppercase">{title}</h1>
         
-        <div className="flex justify-between text-xs font-bold mt-1">
-            <span>Enviado:</span>
-            <span>{sentAt ? formatTime(sentAt) : 'Pendiente'}</span>
+        <div className="my-1 py-1 border-y-2 border-black">
+            <h2 className="text-2xl font-black">MESA {data.table_number}</h2>
+        </div>
+        
+        {data.waiter_name && (
+            <p className="text-xs font-bold uppercase mt-1">
+                MESERO: <span className="bg-black text-white px-1">{data.waiter_name}</span>
+            </p>
+        )}
+
+        <div className="flex justify-between text-xs font-bold mt-2 px-1">
+            <span>Hora: {sentAt ? formatTime(sentAt) : '--:--'}</span>
+            <span>Items: {items.length}</span>
         </div>
       </div>
 
       {/* LISTA DE ITEMS */}
-      <div className="py-2 space-y-3">
+      <div className="py-1 space-y-2">
         {items.length > 0 ? (
             items.map((item, index) => (
-                <div key={index} className="border-b border-dashed border-gray-400 pb-2">
+                <div key={index} className="border-b border-gray-400 pb-2">
                     <div className="flex gap-2 items-start">
-                        {/* Cantidad */}
-                        <span className="font-black text-xl w-8">{item.quantity}</span>
-                        <div className="flex-1">
-                            {/* Nombre (Soporta 'name' del nuevo JSON o 'product.name' del viejo) */}
-                            <span className="font-bold text-lg block leading-none mb-1">
+                        {/* Cantidad Gigante */}
+                        <span className="font-black text-2xl w-8 text-center leading-none mt-1">{item.quantity}</span>
+                        
+                        <div className="flex-1 text-left">
+                            {/* Nombre Producto */}
+                            <span className="font-bold text-lg block leading-5 mb-1 uppercase">
                                 {item.name || item.product_name || item.product?.name}
                             </span>
+                            
                             {/* Notas */}
                             {item.notes && (
-                                <p className="text-sm font-bold bg-black text-white inline-block px-1 rounded">
-                                    *** {item.notes} ***
-                                </p>
+                                <div className="mt-1">
+                                    <span className="text-xs font-bold bg-black text-white inline-block px-1 py-0.5 rounded uppercase">
+                                        NOTA: {item.notes}
+                                    </span>
+                                </div>
                             )}
                         </div>
                     </div>
                 </div>
             ))
         ) : (
-            <p className="text-center italic">Sin items</p>
+            <p className="text-center italic">-- Comanda Vacía --</p>
         )}
       </div>
 
-      <div className="text-center mt-4 border-t-2 border-black pt-2">
+      <div className="text-center mt-4 pt-2 border-t-4 border-black">
         <p className="font-bold text-sm">*** FIN DE TANDA ***</p>
       </div>
-      
     </div>
   );
 };

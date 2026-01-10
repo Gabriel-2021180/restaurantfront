@@ -1,19 +1,26 @@
 import { useState, useEffect } from 'react';
 import { financeService } from '../../services/financeService';
-import { TrendingUp, Banknote, QrCode, CreditCard, Calendar, DollarSign, Loader2 } from 'lucide-react';
+import analyticsService from '../../services/analyticsService'; // Importar Analytics
+import { TrendingUp, Banknote, QrCode, CreditCard, Calendar, Utensils, ShoppingBag, Loader2 } from 'lucide-react';
 
 const DailyReport = () => {
   const [report, setReport] = useState(null);
+  const [channels, setChannels] = useState(null); // Nuevo estado para canales
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadReport();
+    loadAllData();
   }, []);
 
-  const loadReport = async () => {
+  const loadAllData = async () => {
     try {
-      const data = await financeService.getDailyReport();
-      setReport(data);
+      // Carga paralela para velocidad
+      const [reportData, channelData] = await Promise.all([
+          financeService.getDailyReport(),
+          analyticsService.getDayChannels()
+      ]);
+      setReport(reportData);
+      setChannels(channelData);
     } catch (error) {
       console.error("Error cargando reporte", error);
     } finally {
@@ -25,7 +32,6 @@ const DailyReport = () => {
 
   if (!report) return <div className="p-10 text-center text-gray-500">No hay datos disponibles para hoy.</div>;
 
-  // Iconos según el método
   const getIcon = (method) => {
     if (method === 'QR') return <QrCode className="text-purple-500" />;
     if (method === 'TARJETA') return <CreditCard className="text-blue-500" />;
@@ -50,7 +56,29 @@ const DailyReport = () => {
         </div>
       </div>
 
-      {/* CARDS DE MÉTODOS */}
+      {/* --- NUEVO: VS CANALES (MESAS vs PEDIDOS) --- */}
+      {channels && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <ChannelCard 
+                  title="Mesas (Comedor)" 
+                  data={channels.dine_in} 
+                  icon={<Utensils size={24}/>} 
+                  color="text-orange-600" 
+                  bgColor="bg-orange-50"
+                  isWinner={channels.winner === 'Mesas'}
+              />
+              <ChannelCard 
+                  title="Pedidos (Para Llevar)" 
+                  data={channels.pickup} 
+                  icon={<ShoppingBag size={24}/>} 
+                  color="text-blue-600" 
+                  bgColor="bg-blue-50"
+                  isWinner={channels.winner === 'Pedidos' || channels.winner === 'Pickup'}
+              />
+          </div>
+      )}
+
+      {/* CARDS DE MÉTODOS DE PAGO */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {report.breakdown.map((item, index) => (
             <div key={index} className="bg-white dark:bg-dark-card p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-between hover:shadow-md transition-shadow">
@@ -71,32 +99,28 @@ const DailyReport = () => {
             </div>
         ))}
       </div>
-
-      {/* TABLA DETALLE (Opcional, si quieres ver más) */}
-      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-         <h3 className="font-bold text-gray-700 dark:text-white mb-4">Desglose porcentual</h3>
-         <div className="space-y-4">
-            {report.breakdown.map((item, index) => {
-                const percent = (item.total / report.grand_total) * 100;
-                return (
-                    <div key={index}>
-                        <div className="flex justify-between text-sm mb-1 font-medium text-gray-600 dark:text-gray-300">
-                            <span>{item.method}</span>
-                            <span>{percent.toFixed(1)}%</span>
-                        </div>
-                        <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5">
-                            <div 
-                                className={`h-2.5 rounded-full ${item.method === 'QR' ? 'bg-purple-500' : item.method === 'TARJETA' ? 'bg-blue-500' : 'bg-green-500'}`} 
-                                style={{ width: `${percent}%` }}
-                            ></div>
-                        </div>
-                    </div>
-                );
-            })}
-         </div>
-      </div>
     </div>
   );
 };
+
+// Componente visual para las tarjetas VS
+const ChannelCard = ({ title, data, icon, color, bgColor, isWinner }) => (
+    <div className={`p-6 rounded-2xl border-2 flex items-center justify-between transition-all ${isWinner ? 'bg-white border-green-400 shadow-md ring-2 ring-green-50' : 'bg-white border-gray-100 dark:bg-dark-card dark:border-gray-700'}`}>
+        <div>
+            <div className="flex items-center gap-2 mb-1">
+                <span className={`p-2 rounded-lg ${bgColor} ${color}`}>{icon}</span>
+                <span className="text-sm font-bold text-gray-500 uppercase">{title}</span>
+            </div>
+            <p className="text-3xl font-black text-gray-800 dark:text-white">{data?.total || 0} Bs</p>
+            <p className="text-xs text-gray-400 font-bold mt-1">{data?.count || 0} cuentas atendidas</p>
+        </div>
+        {isWinner && (
+            <div className="text-center">
+                <span className="text-2xl">🏆</span>
+                <p className="text-[10px] font-black text-green-600 uppercase">Líder</p>
+            </div>
+        )}
+    </div>
+);
 
 export default DailyReport;

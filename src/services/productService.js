@@ -6,6 +6,11 @@ export default {
     const { data } = await api.get('/menu/products');
     return data;
   },
+  
+  getOne: async (id) => {
+    const { data } = await api.get(`/menu/products/${id}`);
+    return data;
+  },
 
   // GET /menu/products/deleted
   getTrash: async () => {

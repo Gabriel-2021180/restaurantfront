@@ -2,17 +2,22 @@ import { useState } from 'react';
 import { useMarketing } from '../../hooks/useMarketing';
 import { useProducts } from '../../hooks/useProducts';
 import { useCategories } from '../../hooks/useCategories';
+import { useAuth } from '../../context/AuthContext'; // <--- 1. IMPORTANTE
 import Modal from '../../components/ui/Modal';
 import SearchableSelect from '../../components/ui/SearchableSelect';
-import { TicketPercent, Plus, Search, Calendar, Zap, Lock, Tag, Users, Clock, Layers, Utensils, Archive, RotateCcw, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { TicketPercent, Plus, Archive, RotateCcw, Pencil, Trash2, Loader2, Zap, Lock, Layers, Utensils } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 const Promotions = () => {
-  // Traemos 'isCreating' para saber si se está enviando algo
   const { discounts, trash, isLoadingData, isCreating, createDiscount, updateDiscount, deleteDiscount, restoreDiscount } = useMarketing();
   const { products } = useProducts();
   const { categories } = useCategories();
   
+  // --- 2. VERIFICAR PERMISOS ---
+  const { hasRole } = useAuth();
+  // Solo los jefes pueden editar. El mesero solo ve.
+  const isAdmin = hasRole(['super-admin', 'admin']);
+
   const [viewMode, setViewMode] = useState('active'); 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,7 +35,6 @@ const Promotions = () => {
   const sourceData = viewMode === 'active' ? discounts : trash;
   const filteredDiscounts = sourceData.filter(d => d.code?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // --- RESET FORM ---
   const resetForm = () => {
     setStrategy('date');
     setTarget('product');
@@ -45,11 +49,13 @@ const Promotions = () => {
 
   const handleOpenCreate = () => { resetForm(); setIsModalOpen(true); };
   
-  // Para editar, cargamos los datos y detectamos la estrategia
   const handleOpenEdit = (promo) => {
+    // PROTECCIÓN EXTRA: Si un mesero intenta abrir esto por consola, no lo dejamos
+    if (!isAdmin) return; 
+
     setEditingId(promo.id);
     setStrategy(promo.is_automatic ? 'date' : 'coupon');
-    setTarget(promo.category_id ? 'category' : 'product'); // Si tiene category_id es 'category', si no 'product'
+    setTarget(promo.category_id ? 'category' : 'product'); 
     setForm({
       code: promo.code,
       type: promo.type,
@@ -68,20 +74,17 @@ const Promotions = () => {
     .then((r) => { if(r.isConfirmed) deleteDiscount(id) });
   };
 
-  // --- LÓGICA DE ENVÍO CORREGIDA ---
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!isAdmin) return; // Bloqueo de seguridad
+
     try {
-      // 1. Limpieza de valores numéricos
       let finalValue = parseFloat(form.value) || 0;
       if (form.type === '2x1') finalValue = 0; 
 
-      // 2. CORRECCIÓN CRÍTICA: Enviar NULL en lugar de ""
-      // Si el target es 'product', category_id debe ser null (no string vacía)
       const finalProductId = (target === 'product' && form.product_id) ? form.product_id : null;
       const finalCategoryId = (target === 'category' && form.category_id) ? form.category_id : null;
 
-      // 3. Validación visual antes de enviar
       if (target === 'product' && !finalProductId) return Swal.fire('Error', 'Debes seleccionar un producto', 'error');
       if (target === 'category' && !finalCategoryId) return Swal.fire('Error', 'Debes seleccionar una categoría', 'error');
 
@@ -89,15 +92,14 @@ const Promotions = () => {
         code: form.code.toUpperCase(),
         type: form.type,
         value: finalValue,
-        product_id: finalProductId,   // Ahora enviamos null correctamente
-        category_id: finalCategoryId, // Ahora enviamos null correctamente
+        product_id: finalProductId,   
+        category_id: finalCategoryId, 
         start_date: form.start_date,
         end_date: form.end_date,
         is_automatic: strategy === 'date',
         max_uses: strategy === 'coupon' ? (parseInt(form.max_uses) || null) : null
       };
       
-      // Auto-generar código si es automático
       if (payload.is_automatic && !payload.code) {
         payload.code = `AUTO-${target === 'category' ? 'CAT' : 'PROD'}-${new Date().getTime().toString().slice(-4)}`;
       }
@@ -109,7 +111,6 @@ const Promotions = () => {
       }
       setIsModalOpen(false);
     } catch (error) { 
-      // El hook useMarketing ya muestra la alerta, aquí solo atrapamos para que no explote React
       console.error("Error en submit:", error);
     }
   };
@@ -118,17 +119,25 @@ const Promotions = () => {
 
   return (
     <div className="space-y-6">
-      {/* HEADER (Igual que antes) */}
+      {/* HEADER */}
       <div className="flex flex-col xl:flex-row justify-between items-center gap-4 bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-            <TicketPercent className="text-primary" /> {viewMode === 'active' ? 'Promociones Vigentes' : 'Papelera'}
+            <TicketPercent className="text-primary" /> 
+            {/* Si es mesero, siempre dice "Promociones Vigentes" porque no ve papelera */}
+            {isAdmin && viewMode === 'trash' ? 'Papelera' : 'Promociones Vigentes'}
         </h2>
+        
         <div className="flex gap-3">
-             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
-                <button onClick={() => setViewMode('active')} className={`px-4 py-2 rounded-lg text-sm font-bold transition ${viewMode === 'active' ? 'bg-white shadow text-primary' : 'text-gray-500'}`}>Activas</button>
-                <button onClick={() => setViewMode('trash')} className={`px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ${viewMode === 'trash' ? 'bg-white shadow text-red-500' : 'text-gray-500'}`}><Archive size={16} /></button>
-            </div>
-            {viewMode === 'active' && (
+             {/* SOLO ADMIN VE LA OPCIÓN DE CAMBIAR A PAPELERA */}
+             {isAdmin && (
+                <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+                    <button onClick={() => setViewMode('active')} className={`px-4 py-2 rounded-lg text-sm font-bold transition ${viewMode === 'active' ? 'bg-white shadow text-primary' : 'text-gray-500'}`}>Activas</button>
+                    <button onClick={() => setViewMode('trash')} className={`px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ${viewMode === 'trash' ? 'bg-white shadow text-red-500' : 'text-gray-500'}`}><Archive size={16} /></button>
+                </div>
+             )}
+
+            {/* SOLO ADMIN VE EL BOTÓN DE NUEVA PROMO */}
+            {viewMode === 'active' && isAdmin && (
                 <button onClick={handleOpenCreate} className="flex items-center justify-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95">
                     <Plus size={18} /> <span className="hidden sm:inline">Nueva Promo</span>
                 </button>
@@ -136,7 +145,7 @@ const Promotions = () => {
         </div>
       </div>
 
-      {/* GRID DE CARDS (Igual que antes) */}
+      {/* GRID DE CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredDiscounts.map((promo) => (
           <div key={promo.id} className="bg-white dark:bg-dark-card p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden group hover:shadow-md transition-all">
@@ -161,120 +170,128 @@ const Promotions = () => {
                         </span>
                     </p>
                 </div>
+                
+                {/* FECHAS */}
                 <div className="flex justify-between items-end border-t border-gray-100 dark:border-gray-700 pt-4">
                      <div className="space-y-1 text-xs text-gray-500">
                         <div>{promo.start_date?.split('T')[0]} ➜ {promo.end_date?.split('T')[0]}</div>
                      </div>
-                     <div className="flex gap-2">
-                        {viewMode === 'active' ? (
-                            <>
-                                <button onClick={() => handleOpenEdit(promo)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Pencil size={16}/></button>
-                                <button onClick={() => handleDelete(promo.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
-                            </>
-                        ) : (
-                            <button onClick={() => restoreDiscount(promo.id)} className="flex items-center gap-1 px-3 py-1 bg-green-50 text-green-600 rounded-lg text-xs font-bold hover:bg-green-100"><RotateCcw size={14}/> Restaurar</button>
-                        )}
-                    </div>
+                     
+                     {/* ACCIONES (SOLO ADMIN) - EL MESERO NO VE NADA AQUÍ */}
+                     {isAdmin && (
+                        <div className="flex gap-2">
+                            {viewMode === 'active' ? (
+                                <>
+                                    <button onClick={() => handleOpenEdit(promo)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Pencil size={16}/></button>
+                                    <button onClick={() => handleDelete(promo.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                                </>
+                            ) : (
+                                <button onClick={() => restoreDiscount(promo.id)} className="flex items-center gap-1 px-3 py-1 bg-green-50 text-green-600 rounded-lg text-xs font-bold hover:bg-green-100"><RotateCcw size={14}/> Restaurar</button>
+                            )}
+                        </div>
+                     )}
                 </div>
              </div>
           </div>
         ))}
       </div>
 
-      {/* --- MODAL --- */}
-      <Modal isOpen={isModalOpen} onClose={() => !isCreating && setIsModalOpen(false)} title={editingId ? "Editar Promoción" : "Nueva Regla de Juego"}>
-        <form onSubmit={handleSubmit} className="space-y-5">
-          
-          {/* SELECCIÓN DE ESTRATEGIA */}
-          <div className="grid grid-cols-2 gap-4 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl">
-             <button type="button" onClick={() => setStrategy('date')} disabled={isCreating} className={`py-2 rounded-lg text-sm font-bold transition-all ${strategy === 'date' ? 'bg-white shadow text-purple-600' : 'text-gray-500'}`}>
-                <Zap size={16} className="inline mr-2"/> Automática
-             </button>
-             <button type="button" onClick={() => setStrategy('coupon')} disabled={isCreating} className={`py-2 rounded-lg text-sm font-bold transition-all ${strategy === 'coupon' ? 'bg-white shadow text-amber-600' : 'text-gray-500'}`}>
-                <Lock size={16} className="inline mr-2"/> Manual (Cupón)
-             </button>
-          </div>
-
-          <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700 space-y-4">
-                {/* OBJETIVO */}
-                <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Aplicar a:</label>
-                    <div className="flex gap-4 mb-3">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="target" checked={target === 'category'} onChange={() => setTarget('category')} disabled={isCreating} className="text-primary focus:ring-primary"/>
-                            <span className="text-sm font-medium dark:text-gray-300">Categoría</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="target" checked={target === 'product'} onChange={() => setTarget('product')} disabled={isCreating} className="text-primary focus:ring-primary"/>
-                            <span className="text-sm font-medium dark:text-gray-300">Producto</span>
-                        </label>
-                    </div>
-
-                    {target === 'category' ? (
-                        <SearchableSelect label="Seleccionar Categoría" placeholder="Buscar..." options={categories} value={form.category_id} onChange={(id) => setForm({...form, category_id: id})} />
-                    ) : (
-                        <SearchableSelect label="Seleccionar Producto" placeholder="Buscar..." options={products} value={form.product_id} onChange={(id) => setForm({...form, product_id: id})} />
-                    )}
+      {/* MODAL (Solo se renderiza si es Admin, aunque el botón de abrir ya está oculto) */}
+      {isAdmin && (
+        <Modal isOpen={isModalOpen} onClose={() => !isCreating && setIsModalOpen(false)} title={editingId ? "Editar Promoción" : "Nueva Regla de Juego"}>
+            {/* ... CONTENIDO DEL MODAL IGUAL QUE ANTES ... */}
+            <form onSubmit={handleSubmit} className="space-y-5">
+                {/* ... (Todo tu formulario aquí, sin cambios) ... */}
+                {/* Solo copia el contenido del form anterior aquí */}
+                 <div className="grid grid-cols-2 gap-4 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl">
+                    <button type="button" onClick={() => setStrategy('date')} disabled={isCreating} className={`py-2 rounded-lg text-sm font-bold transition-all ${strategy === 'date' ? 'bg-white shadow text-purple-600' : 'text-gray-500'}`}>
+                        <Zap size={16} className="inline mr-2"/> Automática
+                    </button>
+                    <button type="button" onClick={() => setStrategy('coupon')} disabled={isCreating} className={`py-2 rounded-lg text-sm font-bold transition-all ${strategy === 'coupon' ? 'bg-white shadow text-amber-600' : 'text-gray-500'}`}>
+                        <Lock size={16} className="inline mr-2"/> Manual (Cupón)
+                    </button>
                 </div>
-
-                {/* TIPO Y VALOR */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Tipo</label>
-                        <select className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={form.type} onChange={(e) => setForm({...form, type: e.target.value, value: e.target.value === '2x1' ? 0 : form.value})} disabled={isCreating}>
-                            <option value="2x1">2x1</option>
-                            <option value="percentage">Porcentaje (%)</option>
-                            <option value="fixed">Fijo ($)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Valor</label>
-                        <input type="number" disabled={form.type === '2x1' || isCreating} placeholder={form.type === '2x1' ? '-' : '0'} className={`input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white ${form.type === '2x1' ? 'bg-gray-100 opacity-50' : ''}`} value={form.value} onChange={(e) => setForm({...form, value: e.target.value})} />
-                    </div>
-                </div>
-
-                <hr className="border-gray-200 dark:border-gray-700"/>
-                
-                {/* FECHAS O CÓDIGOS */}
-                {strategy === 'date' ? (
-                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase">Inicio</label>
-                            <input type="date" disabled={isCreating} className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={form.start_date} onChange={e => setForm({...form, start_date: e.target.value})} />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase">Fin</label>
-                            <input type="date" disabled={isCreating} className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={form.end_date} onChange={e => setForm({...form, end_date: e.target.value})} />
-                        </div>
+                {/* ... Resto de inputs ... */}
+                <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700 space-y-4">
+                     {/* OBJETIVO */}
+                     <div>
+                         <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Aplicar a:</label>
+                         <div className="flex gap-4 mb-3">
+                             <label className="flex items-center gap-2 cursor-pointer">
+                                 <input type="radio" name="target" checked={target === 'category'} onChange={() => setTarget('category')} disabled={isCreating} className="text-primary focus:ring-primary"/>
+                                 <span className="text-sm font-medium dark:text-gray-300">Categoría</span>
+                             </label>
+                             <label className="flex items-center gap-2 cursor-pointer">
+                                 <input type="radio" name="target" checked={target === 'product'} onChange={() => setTarget('product')} disabled={isCreating} className="text-primary focus:ring-primary"/>
+                                 <span className="text-sm font-medium dark:text-gray-300">Producto</span>
+                             </label>
+                         </div>
+     
+                         {target === 'category' ? (
+                             <SearchableSelect label="Seleccionar Categoría" placeholder="Buscar..." options={categories} value={form.category_id} onChange={(id) => setForm({...form, category_id: id})} />
+                         ) : (
+                             <SearchableSelect label="Seleccionar Producto" placeholder="Buscar..." options={products} value={form.product_id} onChange={(id) => setForm({...form, product_id: id})} />
+                         )}
                      </div>
-                ) : (
-                    <div className="space-y-4">
-                        <div>
-                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Código</label>
-                            <input type="text" disabled={isCreating} placeholder="Ej: VIP50" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white uppercase font-mono tracking-widest" value={form.code} onChange={e => setForm({...form, code: e.target.value})} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-xs font-bold text-gray-500 uppercase">Usos</label>
-                                <input type="number" disabled={isCreating} placeholder="100" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={form.max_uses} onChange={e => setForm({...form, max_uses: e.target.value})} />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-gray-500 uppercase">Vence</label>
-                                <input type="date" disabled={isCreating} className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={form.end_date} onChange={e => setForm({...form, end_date: e.target.value})} />
-                            </div>
-                        </div>
-                    </div>
-                )}
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={() => setIsModalOpen(false)} disabled={isCreating} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 font-bold rounded-xl disabled:opacity-50">Cancelar</button>
-            <button type="submit" disabled={isCreating} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg hover:bg-primary-dark transition disabled:opacity-70 flex justify-center items-center gap-2">
-                {isCreating ? <><Loader2 className="animate-spin" size={20} /> Guardando...</> : (editingId ? 'Guardar Cambios' : 'Crear Regla')}
-            </button>
-          </div>
-        </form>
-      </Modal>
+     
+                     {/* TIPO Y VALOR */}
+                     <div className="grid grid-cols-2 gap-4">
+                         <div>
+                             <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Tipo</label>
+                             <select className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={form.type} onChange={(e) => setForm({...form, type: e.target.value, value: e.target.value === '2x1' ? 0 : form.value})} disabled={isCreating}>
+                                 <option value="2x1">2x1</option>
+                                 <option value="percentage">Porcentaje (%)</option>
+                                 <option value="fixed">Fijo ($)</option>
+                             </select>
+                         </div>
+                         <div>
+                             <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Valor</label>
+                             <input type="number" disabled={form.type === '2x1' || isCreating} placeholder={form.type === '2x1' ? '-' : '0'} className={`input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white ${form.type === '2x1' ? 'bg-gray-100 opacity-50' : ''}`} value={form.value} onChange={(e) => setForm({...form, value: e.target.value})} />
+                         </div>
+                     </div>
+     
+                     <hr className="border-gray-200 dark:border-gray-700"/>
+                     
+                     {/* FECHAS O CÓDIGOS */}
+                     {strategy === 'date' ? (
+                          <div className="grid grid-cols-2 gap-4">
+                             <div>
+                                 <label className="text-xs font-bold text-gray-500 uppercase">Inicio</label>
+                                 <input type="date" disabled={isCreating} className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={form.start_date} onChange={e => setForm({...form, start_date: e.target.value})} />
+                             </div>
+                             <div>
+                                 <label className="text-xs font-bold text-gray-500 uppercase">Fin</label>
+                                 <input type="date" disabled={isCreating} className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={form.end_date} onChange={e => setForm({...form, end_date: e.target.value})} />
+                             </div>
+                          </div>
+                     ) : (
+                         <div className="space-y-4">
+                             <div>
+                                 <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Código</label>
+                                 <input type="text" disabled={isCreating} placeholder="Ej: VIP50" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white uppercase font-mono tracking-widest" value={form.code} onChange={e => setForm({...form, code: e.target.value})} />
+                             </div>
+                             <div className="grid grid-cols-2 gap-4">
+                                 <div>
+                                     <label className="text-xs font-bold text-gray-500 uppercase">Usos</label>
+                                     <input type="number" disabled={isCreating} placeholder="100" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={form.max_uses} onChange={e => setForm({...form, max_uses: e.target.value})} />
+                                 </div>
+                                 <div>
+                                     <label className="text-xs font-bold text-gray-500 uppercase">Vence</label>
+                                     <input type="date" disabled={isCreating} className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={form.end_date} onChange={e => setForm({...form, end_date: e.target.value})} />
+                                 </div>
+                             </div>
+                         </div>
+                     )}
+               </div>
+               <div className="flex gap-3 pt-2">
+                 <button type="button" onClick={() => setIsModalOpen(false)} disabled={isCreating} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 font-bold rounded-xl disabled:opacity-50">Cancelar</button>
+                 <button type="submit" disabled={isCreating} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg hover:bg-primary-dark transition disabled:opacity-70 flex justify-center items-center gap-2">
+                     {isCreating ? <><Loader2 className="animate-spin" size={20} /> Guardando...</> : (editingId ? 'Guardar Cambios' : 'Crear Regla')}
+                 </button>
+               </div>
+            </form>
+        </Modal>
+      )}
     </div>
   );
 };

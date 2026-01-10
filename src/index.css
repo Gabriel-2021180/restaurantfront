@@ -1,18 +1,41 @@
+/* src/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* CSS ESPECÍFICO PARA LA PÁGINA DE IMPRESIÓN */
+/* ESTILOS DE IMPRESIÓN GLOBALES */
 @media print {
-  /* Si estamos en la ruta de impresión, aseguramos márgenes 0 */
-  @page {
-    margin: 0;
-    size: 80mm auto;
+  /* 1. Ocultar TODO lo que hay en la pantalla */
+  body * {
+    visibility: hidden;
   }
-  
-  body {
-    margin: 0;
-    padding: 0;
-    background: white;
+
+  /* 2. Hacer visible SOLO el contenedor del ticket y su contenido */
+  #invoice-ticket-container,
+  #invoice-ticket-container * {
+    visibility: visible !important;
+  }
+
+  /* 3. Posicionamiento FIJO para "sacarlo" del Modal */
+  #invoice-ticket-container {
+    position: fixed !important; /* Fixed es la clave: ignora al padre (Modal) */
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important; /* Ancho estándar de ticket térmico */
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: white !important;
+    z-index: 999999999 !important; /* Encima de todo */
+  }
+
+  /* 4. Ajustes de página física */
+  @page {
+    size: 80mm auto; /* Papel continuo */
+    margin: 0mm;
+  }
+
+  /* 5. Limpieza visual */
+  button, .no-print, ::-webkit-scrollbar {
+    display: none !important;
   }
 }

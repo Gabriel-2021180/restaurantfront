@@ -40,5 +40,27 @@ export default {
   register: async (registerData) => {
     const { data } = await api.post('/users/register', registerData);
     return data;
+  },
+
+  getTipsStats: async (period = 'day') => {
+    const { data } = await api.get(`/users/tips?period=${period}`);
+    return data; 
+    // Esperamos que retorne: { stats: { total_money... }, history: [...] }
+  },
+
+  // 2. Registrar Propina
+  registerTip: async (payload) => {
+    const { data } = await api.post('/users/tips', payload);
+    return data;
+  },
+
+  // 3. Pendientes por Registrar (Izquierda)
+  // GET /orders?status=completed&pending_tip=true
+  getCompletedOrders: async () => {
+    const { data } = await api.get('/orders?status=completed&pending_tip=true');
+    return data; 
+    // Retorna array de órdenes que AÚN NO tienen registro en la tabla 'tips'
   }
+
+  
 };

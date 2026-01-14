@@ -1,10 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import orderService from '../../services/orderService';
 import userService from '../../services/userService'; // <--- IMPORTANTE: Lo necesitamos de vuelta
 import KitchenTicket from '../../components/orders/KitchenTicket';
 
 const KitchenPrintView = () => {
+  const { t } = useTranslation();
   const { orderId } = useParams();
   const [ticketData, setTicketData] = useState(null);
   const hasPrinted = useRef(false);
@@ -16,7 +18,7 @@ const KitchenPrintView = () => {
         const history = await orderService.getKitchenHistory(orderId);
         const fullOrder = await orderService.getOrder(orderId);
         
-        const tableName = fullOrder.table?.table_number || "Mesa ??";
+        const tableName = fullOrder.table?.table_number || t('kitchenPrintView.tableUnknown');
         const orderNum = fullOrder.order_number || "---";
 
         if (history && history.length > 0) {
@@ -27,7 +29,7 @@ const KitchenPrintView = () => {
              const batchToPrint = sorted[0];
 
              // --- LÓGICA DE RECUPERACIÓN DE NOMBRE (ESTRATEGIA TOTAL) ---
-             let finalWaiterName = "Sin Asignar";
+             let finalWaiterName = t('kitchenPrintView.unassigned');
 
              // CASO 1: Si el backend ya manda el nombre (Socket/Snapshot)
              if (batchToPrint.waiter_name) {
@@ -44,7 +46,7 @@ const KitchenPrintView = () => {
              
              // CASO 4 (EL SALVAVIDAS): Si solo tenemos el ID en el historial
              // Tu JSON muestra que history tiene "waiter_id". Usémoslo.
-             if (finalWaiterName === "Sin Asignar" && batchToPrint.waiter_id) {
+             if (finalWaiterName === t('kitchenPrintView.unassigned') && batchToPrint.waiter_id) {
                  try {
                      // Traemos la lista de usuarios para buscar quién es ese ID
                      const usersData = await userService.getAllUsers();
@@ -56,7 +58,7 @@ const KitchenPrintView = () => {
                          finalWaiterName = foundUser.name || `${foundUser.first_names} ${foundUser.last_names}`;
                      }
                  } catch (err) {
-                     console.error("No se pudo resolver el nombre por ID", err);
+                     console.error(t('kitchenPrintView.couldNotResolveNameById'), err);
                  }
              }
 
@@ -68,7 +70,7 @@ const KitchenPrintView = () => {
              });
         }
       } catch (error) {
-        console.error("Error cargando ticket", error);
+        console.error(t('kitchenPrintView.errorLoadingTicket'), error);
       }
     };
 
@@ -82,7 +84,7 @@ const KitchenPrintView = () => {
     }
   }, [ticketData]);
 
-  if (!ticketData) return <div className="p-4 font-mono text-center text-sm">Preparando ticket...</div>;
+  if (!ticketData) return <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12"/></div>;
 
   return (
     <div className="w-[80mm] bg-white">

@@ -21,14 +21,23 @@ const KitchenTicket = ({ data, batchNumber, sentAt }) => {
         <p className="text-xs font-bold uppercase mb-1">ORDEN DE COCINA</p>
         <h1 className="text-xl font-black my-1 uppercase">{title}</h1>
         
-        <div className="my-1 py-1 border-y-2 border-black">
-            <h2 className="text-2xl font-black">MESA {data.table_number}</h2>
-        </div>
-        
-        {data.waiter_name && (
-            <p className="text-xs font-bold uppercase mt-1">
-                MESERO: <span className="bg-black text-white px-1">{data.waiter_name}</span>
-            </p>
+        {data.is_takeaway ? (
+          <div className="my-1 py-1 border-y-2 border-black bg-gray-800 text-white">
+            <h2 className="text-2xl font-black">PARA LLEVAR</h2>
+            {data.client_name && <p className="text-xs font-bold uppercase">{data.client_name}</p>}
+          </div>
+        ) : (
+          <>
+            <div className="my-1 py-1 border-y-2 border-black">
+                <h2 className="text-2xl font-black">MESA {data.table_number}</h2>
+            </div>
+            
+            {data.waiter_name && (
+                <p className="text-xs font-bold uppercase mt-1">
+                    MESERO: <span className="bg-black text-white px-1">{data.waiter_name}</span>
+                </p>
+            )}
+          </>
         )}
 
         <div className="flex justify-between text-xs font-bold mt-2 px-1">

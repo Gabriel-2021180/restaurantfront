@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useInventory } from '../../hooks/useInventory';
 import { useProducts } from '../../hooks/useProducts'; // Necesitamos updateProduct aquí
 import Modal from '../../components/ui/Modal';
@@ -6,6 +7,7 @@ import { Plus, Package, ShoppingCart, Loader2, Beef, Box, AlertTriangle, Pencil,
 import Swal from 'sweetalert2';
 
 const Supplies = () => {
+  const { t } = useTranslation();
   // HOOKS
   const { supplies, isLoading: loadingSupplies, createSupply, addStock, updateSupply, deleteSupply } = useInventory();
   // Agregamos updateProduct para la lógica de reventa
@@ -52,12 +54,12 @@ const Supplies = () => {
 
   const handleDelete = (id) => {
       Swal.fire({
-          title: '¿Eliminar insumo?',
-          text: "Esto puede afectar las recetas que lo usan.",
+          title: t('supplies.deleteSupply'),
+          text: t('supplies.affectsRecipes'),
           icon: 'warning',
           showCancelButton: true,
           confirmButtonColor: '#d33',
-          confirmButtonText: 'Sí, borrar'
+          confirmButtonText: t('supplies.yesDelete')
       }).then((r) => { if(r.isConfirmed) deleteSupply(id) });
   };
 
@@ -70,7 +72,7 @@ const Supplies = () => {
         const stockEnKilos = parseFloat(formCreate.current_stock_kilo);
         const minStockEnKilos = parseFloat(formCreate.min_stock_kilo);
 
-        if (isNaN(costPerKilo) || isNaN(stockEnKilos)) throw new Error("Datos numéricos inválidos");
+        if (isNaN(costPerKilo) || isNaN(stockEnKilos)) throw new Error(t('supplies.invalidNumericData'));
 
         const payload = {
             name: formCreate.name,
@@ -133,7 +135,7 @@ const Supplies = () => {
                 }
             });
             
-            Swal.fire('Stock Actualizado', `Nuevo total: ${newTotalStock} unidades`, 'success');
+            Swal.fire(t('supplies.stockUpdated'), t('supplies.newTotalUnits', { newTotalStock }), 'success');
         }
 
         setIsStockOpen(false);
@@ -153,16 +155,16 @@ const Supplies = () => {
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div>
             <h2 className="text-2xl font-bold flex items-center gap-2 text-gray-800 dark:text-white">
-                <Package className="text-orange-500"/> Inventario (Almacén)
+                <Package className="text-orange-500"/> {t('supplies.inventoryWarehouse')}
             </h2>
             <div className="flex gap-2 mt-2">
-                <button onClick={() => setActiveTab('raw')} className={`px-3 py-1 rounded-lg text-sm font-bold transition ${activeTab === 'raw' ? 'bg-orange-100 text-orange-700' : 'text-gray-500 hover:bg-gray-100'}`}>🥩 Materia Prima</button>
-                <button onClick={() => setActiveTab('resale')} className={`px-3 py-1 rounded-lg text-sm font-bold transition ${activeTab === 'resale' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}>🥤 Reventa</button>
+                <button onClick={() => setActiveTab('raw')} className={`px-3 py-1 rounded-lg text-sm font-bold transition ${activeTab === 'raw' ? 'bg-orange-100 text-orange-700' : 'text-gray-500 hover:bg-gray-100'}`}>🥩 {t('supplies.rawMaterial')}</button>
+                <button onClick={() => setActiveTab('resale')} className={`px-3 py-1 rounded-lg text-sm font-bold transition ${activeTab === 'resale' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}>🥤 {t('supplies.resale')}</button>
             </div>
         </div>
         {activeTab === 'raw' && (
             <button onClick={handleOpenCreate} className="flex items-center gap-2 px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl shadow-lg transition active:scale-95">
-                <Plus size={18} /> Nueva Materia Prima
+                <Plus size={18} /> {t('supplies.newRawMaterial')}
             </button>
         )}
       </div>
@@ -186,22 +188,22 @@ const Supplies = () => {
                             <div className="p-2 bg-orange-50 rounded-lg"><Beef className="text-orange-500 w-6 h-6"/></div>
                             <div>
                                 <h3 className="font-bold text-gray-800 dark:text-white leading-tight">{item.name}</h3>
-                                <p className="text-[10px] text-gray-400 font-bold mt-0.5">COSTO: {costKg.toFixed(2)} Bs / Kg</p>
+                                <p className="text-[10px] text-gray-400 font-bold">{t('supplies.cost')}: {costKg.toFixed(2)} {t('common.currency')} / {t('supplies.kg')}</p>
                             </div>
                         </div>
                         
                         <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl flex justify-between items-center mb-3">
                             <div>
-                                <p className="text-[10px] text-gray-500 uppercase font-bold">Disponible</p>
+                                <p className="text-[10px] text-gray-500 uppercase font-bold">{t('supplies.available')}</p>
                                 <p className={`text-2xl font-black ${stockKg <= alertKg ? 'text-red-500' : 'text-gray-800 dark:text-white'}`}>
-                                    {stockKg.toFixed(2)} <span className="text-sm font-normal text-gray-400">Kg</span>
+                                    {stockKg.toFixed(2)} <span className="text-sm font-normal text-gray-400">{t('supplies.kgShort')}</span>
                                 </p>
                             </div>
                             {stockKg <= alertKg && <AlertTriangle className="text-red-500 animate-pulse"/>}
                         </div>
 
                         <button onClick={() => handleOpenStock(item, 'raw')} className="w-full py-2.5 bg-gray-800 hover:bg-black text-white font-bold rounded-xl flex items-center justify-center gap-2 text-sm shadow-md transition-transform active:scale-95">
-                            <ShoppingCart size={16}/> Reponer Stock
+                            <ShoppingCart size={16}/> {t('supplies.restock')}
                         </button>
                     </div>
                 );
@@ -219,14 +221,14 @@ const Supplies = () => {
                             <div className="p-2 bg-blue-50 rounded-lg"><Box className="text-blue-500 w-6 h-6"/></div>
                             <div>
                                 <h3 className="font-bold text-gray-800 dark:text-white capitalize">{item.name}</h3>
-                                <p className="text-[10px] text-gray-400 font-bold">COMPRA: {item.purchase_price} Bs | VENTA: {item.price} Bs</p>
+                                <p className="text-[10px] text-gray-400 font-bold">{t('supplies.buy')}: {item.purchase_price} {t('common.currency')} | {t('supplies.sale')}: {item.price} {t('common.currency')}</p>
                             </div>
                         </div>
                         <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl mb-4">
-                            <p className="text-[10px] text-gray-500 uppercase font-bold">Stock Unidades</p>
+                            <p className="text-[10px] text-gray-500 uppercase font-bold">{t('supplies.stockUnits')}</p>
                             <div className="flex justify-between items-end">
                                 <p className="text-2xl font-black text-blue-600">{item.stock}</p>
-                                {item.stock < 5 && <span className="text-[10px] text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded">Bajo Stock</span>}
+                                {item.stock < 5 && <span className="text-[10px] text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded">{t('supplies.lowStock')}</span>}
                             </div>
                         </div>
                     </div>
@@ -236,7 +238,7 @@ const Supplies = () => {
                         onClick={() => handleOpenStock(item, 'resale')} 
                         className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 text-sm shadow-md transition-transform active:scale-95"
                     >
-                        <ArrowUpCircle size={16}/> Recargar (Sumar)
+                        <ArrowUpCircle size={16}/> {t('supplies.reloadAdd')}
                     </button>
                 </div>
             ))}
@@ -244,42 +246,42 @@ const Supplies = () => {
       )}
 
       {/* --- MODAL CREAR / EDITAR (MATERIA PRIMA) --- */}
-      <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title={editingItem ? "Editar Insumo" : "Nueva Materia Prima"}>
+      <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title={editingItem ? t('supplies.editSupply') : t('supplies.newRawMaterialModal')}>
         <form onSubmit={handleSaveRaw} className="space-y-4">
             {/* ... Campos del formulario sin cambios ... */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Nombre</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t('supplies.name')}</label>
                     <input type="text" className="input-base w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white" required value={formCreate.name} onChange={e=>setFormCreate({...formCreate, name:e.target.value})}/>
                 </div>
                 <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Costo por Kilo ($)</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t('supplies.costPerKilo')}</label>
                     <input type="number" step="0.01" min="0" className="input-base w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white" required value={formCreate.cost_per_kilo} onChange={e=>setFormCreate({...formCreate, cost_per_kilo:e.target.value})}/>
                 </div>
                 <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Stock Actual (Kg)</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t('supplies.currentStockKg')}</label>
                     <input type="number" step="0.01" min="0" className="input-base w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white" required value={formCreate.current_stock_kilo} onChange={e=>setFormCreate({...formCreate, current_stock_kilo:e.target.value})}/>
                 </div>
                 <div className="col-span-2">
-                    <label className="text-xs font-bold text-red-500 uppercase">Alerta Mínima (Kg)</label>
+                    <label className="text-xs font-bold text-red-500 uppercase">{t('supplies.minAlertKg')}</label>
                     <input type="number" step="0.01" min="0" className="input-base w-full p-3 border-2 border-red-100 bg-red-50 rounded-xl dark:bg-gray-800 dark:text-white" required value={formCreate.min_stock_kilo} onChange={e=>setFormCreate({...formCreate, min_stock_kilo:e.target.value})}/>
                 </div>
             </div>
             <button type="submit" disabled={isSubmitting} className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl flex justify-center items-center gap-2">
-                {isSubmitting ? <Loader2 className="animate-spin"/> : (editingItem ? 'Guardar Cambios' : 'Registrar Insumo')}
+                {isSubmitting ? <Loader2 className="animate-spin"/> : (editingItem ? t('supplies.saveChanges') : t('supplies.registerSupply'))}
             </button>
         </form>
       </Modal>
 
       {/* --- MODAL REPOSICIÓN (DINÁMICO) --- */}
-      <Modal isOpen={isStockOpen} onClose={() => setIsStockOpen(false)} title={`Reponer: ${selectedItem?.name}`}>
+      <Modal isOpen={isStockOpen} onClose={() => setIsStockOpen(false)} title={`${t('supplies.restock')}: ${selectedItem?.name}`}>
         <form onSubmit={handleAddStock} className="space-y-4">
             
             {/* MENSAJE DE AYUDA SEGÚN TIPO */}
             <div className="bg-gray-100 p-3 rounded-xl text-xs text-gray-500 mb-2">
                 {selectedItem?.type === 'raw' 
-                    ? "Estas agregando KILOS a tu inventario de cocina."
-                    : "Estas sumando UNIDADES (Botellas, Latas, etc) a tu stock de venta."
+                    ? t('supplies.addKilosToKitchen')
+                    : t('supplies.addUnitsToResale')
                 }
             </div>
 
@@ -287,7 +289,7 @@ const Supplies = () => {
                 <div>
                     {/* ETIQUETA DINÁMICA */}
                     <label className="text-xs font-bold text-gray-500 uppercase">
-                        {selectedItem?.type === 'raw' ? 'Sumar (Kg)' : 'Sumar (Unidades)'}
+                        {selectedItem?.type === 'raw' ? t('supplies.addKg') : t('supplies.addUnits')}
                     </label>
                     <input 
                         type="number" 
@@ -302,7 +304,7 @@ const Supplies = () => {
                 </div>
                 <div>
                     <label className="text-xs font-bold text-gray-500 uppercase">
-                        {selectedItem?.type === 'raw' ? 'Costo (Bs/Kg)' : 'Costo Compra (Bs/u)'}
+                        {selectedItem?.type === 'raw' ? t('supplies.costBsKg') : t('supplies.purchaseCostBsUnit')}
                     </label>
                     <input 
                         type="number" 
@@ -320,7 +322,7 @@ const Supplies = () => {
                 disabled={isSubmitting} 
                 className={`w-full py-3 text-white font-bold rounded-xl flex justify-center items-center gap-2 ${selectedItem?.type === 'raw' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'}`}
             >
-                {isSubmitting ? <Loader2 className="animate-spin"/> : 'Confirmar Compra'}
+                {isSubmitting ? <Loader2 className="animate-spin"/> : t('supplies.confirmPurchase')}
             </button>
         </form>
       </Modal>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTables } from '../../hooks/useTables';
 import { useKitchen } from '../../hooks/useKitchen'; 
 import orderService from '../../services/orderService'; // <--- USAR ESTE SERVICIO
@@ -7,6 +8,7 @@ import KitchenTicket from '../../components/orders/KitchenTicket';
 import { ChefHat, Printer, RefreshCw, LayoutGrid, List, Loader2, ShoppingBag, Utensils } from 'lucide-react';
 
 const KitchenControl = () => {
+    const { t } = useTranslation();
     const { tables, isLoading: tablesLoading } = useTables();
     
     // --- CAMBIO CLAVE: Usamos un estado local para las órdenes activas ---
@@ -19,7 +21,7 @@ const KitchenControl = () => {
             const data = await orderService.getActiveOrders();
             setAllActiveOrders(Array.isArray(data) ? data : []);
         } catch (error) {
-            console.error("Error cargando órdenes cocina:", error);
+            console.error(t('kitchenControl.errorLoadingOrders'), error);
         } finally {
             setLoadingOrders(false);
         }
@@ -80,15 +82,16 @@ const KitchenControl = () => {
     };
 
     const handleSelectBatch = (batch) => {
-        const title = activeTab === 'dine_in' 
-            ? selectedItem?.table_number 
-            : (selectedItem?.client_name || selectedItem?.pickup_name || "Cliente"); // Usamos client_name directo de la orden
-
+        const isTakeaway = activeTab === 'pickup';
+        
         setSelectedBatch({
             ...batch,
-            table_number: title, 
-            order_number: "---",
-            waiter_name: batch.waiter_name || (activeTab === 'pickup' ? 'CAJA' : 'Sin Asignar')
+            is_takeaway: isTakeaway,
+            // Pasamos la info original del item seleccionado
+            table_number: isTakeaway ? null : selectedItem?.table_number,
+            client_name: isTakeaway ? (selectedItem?.client_name || selectedItem?.pickup_name || t('kitchenControl.client')) : null,
+            // La lógica del waiter_name se mantiene, pero ahora es más clara
+            waiter_name: batch.waiter_name || (isTakeaway ? t('kitchenControl.cashier') : t('kitchenControl.unassigned'))
         });
     };
 
@@ -116,23 +119,23 @@ const KitchenControl = () => {
             <header className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                        <ChefHat className="text-orange-500"/> Monitor de Cocina
+                        <ChefHat className="text-orange-500"/> {t('kitchenControl.kitchenMonitor')}
                     </h1>
                     <p className="text-sm text-gray-500 flex items-center gap-2">
                         <span className="relative flex h-3 w-3">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                           <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                         </span>
-                        Sistema en Vivo
+                        {t('kitchenControl.liveSystem')}
                     </p>
                 </div>
 
                 <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
                     <button onClick={() => setActiveTab('dine_in')} className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'dine_in' ? 'bg-white shadow text-orange-600' : 'text-gray-500'}`}>
-                        <Utensils size={16}/> Mesas
+                        <Utensils size={16}/> {t('kitchenControl.tables')}
                     </button>
                     <button onClick={() => setActiveTab('pickup')} className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'pickup' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>
-                        <ShoppingBag size={16}/> Para Llevar
+                        <ShoppingBag size={16}/> {t('kitchenControl.takeAway')}
                     </button>
                 </div>
 
@@ -144,16 +147,16 @@ const KitchenControl = () => {
             {activeList.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-64 bg-white dark:bg-dark-card rounded-2xl border-dashed border-2 border-gray-200 text-gray-400">
                     <LayoutGrid size={48} className="mb-4 opacity-50"/>
-                    <p>No hay comandas activas en esta sección</p>
+                    <p>{t('kitchenControl.noActiveOrdersInSection')}</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {activeList.map(item => {
                         // AJUSTE VISUAL PARA PICKUP
-                        const title = activeTab === 'dine_in' ? item.table_number : (item.client_name || item.pickup_name || "Cliente");
-                        const subtitle = activeTab === 'dine_in' ? `Capacidad: ${item.capacity}` : `Orden #${item.order_number}`;
+                        const title = activeTab === 'dine_in' ? item.table_number : (item.client_name || item.pickup_name || t('kitchenControl.client'));
+                        const subtitle = activeTab === 'dine_in' ? t('kitchenControl.capacity', { capacity: item.capacity }) : t('kitchenControl.orderNumber', { number: item.order_number });
                         const statusColor = activeTab === 'dine_in' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700';
-                        const statusText = activeTab === 'dine_in' ? 'ABIERTA' : 'PENDIENTE';
+                        const statusText = activeTab === 'dine_in' ? t('kitchenControl.open') : t('kitchenControl.pending');
 
                         return (
                             <div key={item.id} onClick={() => handleOpenManage(item)} className="bg-white dark:bg-dark-card p-5 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 flex flex-col justify-between h-48 hover:border-orange-400 cursor-pointer transition-all active:scale-95 group relative overflow-hidden">
@@ -167,7 +170,7 @@ const KitchenControl = () => {
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-dashed border-gray-200 text-center">
                                     <span className="font-bold text-sm text-gray-600 flex items-center justify-center gap-2 group-hover:text-orange-600">
-                                        <List size={16}/> Ver Comandas
+                                        <List size={16}/> {t('kitchenControl.viewOrders')}
                                     </span>
                                 </div>
                             </div>
@@ -176,16 +179,16 @@ const KitchenControl = () => {
                 </div>
             )}
 
-            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={`${activeTab === 'dine_in' ? 'Mesa' : 'Cliente'}: ${selectedItem?.table_number || selectedItem?.client_name || '...'}`}>
+            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={`${activeTab === 'dine_in' ? t('kitchenControl.table') : t('kitchenControl.client')}: ${selectedItem?.table_number || selectedItem?.client_name || '...'}`}>
                 <div className="flex flex-col md:flex-row gap-6 h-[70vh]">
                     <div className="w-full md:w-1/3 flex flex-col border-r pr-4 bg-gray-50 rounded-l-xl p-4 overflow-y-auto custom-scrollbar">
                         <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
-                            <List size={18}/> Historial
+                            <List size={18}/> {t('kitchenControl.history')}
                             {historyLoading && <Loader2 className="animate-spin w-4 h-4 text-primary ml-auto"/>}
                         </h3>
                         {batches.length === 0 ? (
                             <div className="text-center py-10 text-gray-400">
-                                {historyLoading ? 'Cargando...' : 'Sin pedidos aún.'}
+                                {historyLoading ? <Loader2 className="animate-spin text-primary w-8 h-8 mx-auto mb-2"/> : t('kitchenControl.noOrdersYet')}
                             </div>
                         ) : (
                             <div className="space-y-3">
@@ -195,11 +198,11 @@ const KitchenControl = () => {
                                     return (
                                         <div key={index} onClick={() => handleSelectBatch(batch)} className={`p-4 rounded-xl cursor-pointer border transition-all ${isActive ? 'bg-white border-primary ring-2 ring-primary/10 shadow-md' : 'bg-white border-gray-200 hover:border-orange-300'}`}>
                                             <div className="flex justify-between items-center mb-1">
-                                                <span className={`font-black ${isNew ? 'text-orange-600' : 'text-gray-700'}`}>{isNew ? '🔔 POR MARCHAR' : `TANDA #${batch.batch_number}`}</span>
+                                                <span className={`font-black ${isNew ? 'text-orange-600' : 'text-gray-700'}`}>{isNew ? t('kitchenControl.toPrepare') : t('kitchenControl.batchNumber', { number: batch.batch_number })}</span>
                                                 <span className="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-500">{isNew ? '...' : new Date(batch.sent_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
                                             </div>
-                                            <p className="text-xs text-gray-500">{batch.items?.length || 0} items</p>
-                                            {isNew && <div className="mt-2 text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded animate-pulse">Esperando confirmación...</div>}
+                                            <p className="text-xs text-gray-500">{batch.items?.length || 0} {t('kitchenControl.items')}</p>
+                                            {isNew && <div className="mt-2 text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded animate-pulse">{t('kitchenControl.waitingConfirmation')}</div>}
                                         </div>
                                     )
                                 })}
@@ -215,13 +218,13 @@ const KitchenControl = () => {
                                     </div>
                                 </div>
                                 <button onClick={handlePrintAction} disabled={selectedBatch.batch_number === 0} className={`w-full py-4 text-white font-bold rounded-xl shadow-2xl transition-transform active:scale-95 flex items-center justify-center gap-2 ${selectedBatch.batch_number === 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                                    <Printer size={24}/> {selectedBatch.batch_number === 0 ? 'Esperando al Cajero/Mesero...' : 'IMPRIMIR TICKET'}
+                                    <Printer size={24}/> {selectedBatch.batch_number === 0 ? t('kitchenControl.waitingCashierWaiter') : t('kitchenControl.printTicket')}
                                 </button>
                             </>
                         ) : (
                             <div className="text-gray-400 flex flex-col items-center justify-center h-full">
                                 <Printer size={48} className="mb-4 opacity-20"/>
-                                <p>Selecciona una tanda.</p>
+                                <p>{t('kitchenControl.selectBatch')}</p>
                             </div>
                         )}
                     </div>

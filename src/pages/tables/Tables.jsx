@@ -1,212 +1,249 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTables } from '../../hooks/useTables';
 import { useOrders } from '../../hooks/useOrders';
-import { useAuth } from '../../context/AuthContext'; // IMPORTANTE
-import Modal from '../../components/ui/Modal';
-import { Plus, Search, Archive, Users, RotateCcw, Pencil, Trash2, Loader2, Square, Armchair, Lock } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { 
+    Armchair, Users, Loader2, AlertCircle, 
+    CheckCircle2, Clock, DollarSign, XCircle, Search 
+} from 'lucide-react';
 import Swal from 'sweetalert2';
-import { useQueryClient } from '@tanstack/react-query';
 
 const Tables = () => {
-  const { tables, trash, isLoading, isCreating, createTable, updateTable, deleteTable, restoreTable } = useTables();
+  const { t } = useTranslation();
+  const { tables, loadTables, isLoading: loadingTables } = useTables();
+  // Asegúrate de que tu hook useOrders exporte estas funciones
+  const { createOrder, closeOrderAndFreeTable } = useOrders(); 
+  const { user, hasRole } = useAuth();
   const navigate = useNavigate();
-  const { openTable } = useOrders();
-  const queryClient = useQueryClient();
-  
-  // --- AUTH HOOK (SEGURIDAD) ---
-  const { hasRole, user } = useAuth(); // TRAEMOS EL USUARIO
-  const isAdmin = hasRole(['super-admin', 'admin']);
 
-  // ESTADOS
-  const [viewMode, setViewMode] = useState('active'); 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingTable, setEditingTable] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-
-  // FORMULARIO
-  const [form, setForm] = useState({ table_number: '', capacity: '' });
-
-  const sourceData = viewMode === 'active' ? tables : trash;
+  const [filterStatus, setFilterStatus] = useState('all'); 
   
-  const filteredList = sourceData.filter(t => 
-    t.table_number.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // 🔥 ESTADO NUEVO: Para saber qué mesa se está liberando y bloquearla visualmente
+  const [releasingTableId, setReleasingTableId] = useState(null); 
 
-  // ... (ResetForm, Handles igual que antes) ...
-  const resetForm = () => { setEditingTable(null); setForm({ table_number: '', capacity: '' }); };
-  const handleOpenCreate = () => { resetForm(); setIsModalOpen(true); };
-  const handleOpenEdit = (table) => { setEditingTable(table); setForm({ table_number: table.table_number, capacity: table.capacity }); setIsModalOpen(true); };
-  const handleDelete = (id, status) => { if (status === 'occupied') return Swal.fire('Alto ahí', 'Mesa ocupada.', 'warning'); Swal.fire({ title: '¿Borrar?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Sí' }).then((r) => { if(r.isConfirmed) deleteTable(id) }); };
+  useEffect(() => {
+    loadTables();
+    // Opcional: Podrías configurar un intervalo aquí si no usas sockets para refrescar
+    // const interval = setInterval(loadTables, 10000);
+    // return () => clearInterval(interval);
+  }, []);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const payload = { table_number: form.table_number, capacity: parseInt(form.capacity) || 2 };
-      if (editingTable) await updateTable({ id: editingTable.id, ...payload });
-      else await createTable(payload);
-      setIsModalOpen(false);
-    } catch (error) { console.error(error); }
+  // Lógica al hacer click en la tarjeta de la mesa
+  const handleTableClick = async (table) => {
+      // 1. Si la mesa está OCUPADA -> Intentar entrar
+      if (table.status === 'occupied') {
+          // Permiso: Admin, SuperAdmin o el Dueño de la orden
+          const canAccess = hasRole(['admin', 'super-admin']) || table.current_order?.waiter_id === user.id;
+
+          if (canAccess) {
+              navigate(`/orders/${table.current_order_id}`);
+          } else {
+              Swal.fire({
+                  title: t('tables.accessRestrictedTitle'),
+                  text: t('tables.accessRestrictedText'),
+                  icon: 'warning',
+                  confirmButtonText: t('tables.understood')
+              });
+          }
+      } 
+      // 2. Si la mesa está DISPONIBLE -> Abrir nueva orden
+      else if (table.status === 'available') {
+          const result = await Swal.fire({
+              title: t('tables.openTableQuestion', { tableNumber: table.table_number }),
+              icon: 'question',
+              showCancelButton: true,
+              confirmButtonText: t('tables.yesOpen'),
+              cancelButtonText: t('tables.cancel'),
+              confirmButtonColor: '#10B981' // Verde
+          });
+
+          if (result.isConfirmed) {
+              try {
+                  // Crea la orden en backend
+                  const newOrder = await createOrder({ table_id: table.id });
+                  // Redirige inmediatamente
+                  navigate(`/orders/${newOrder.id}`);
+              } catch (error) {
+                  console.error(error);
+                  Swal.fire(t('tables.error'), t('tables.couldNotOpenTable'), 'error');
+              }
+          }
+      }
   };
 
-  // --- LÓGICA DE CLICK EN MESA (AQUÍ ESTÁ LA SEGURIDAD) ---
-  const handleTableClick = async (table) => {
-        if (viewMode === 'trash') return;
+  // 🔥 FUNCIÓN OPTIMIZADA: LIBERAR MESA
+  const handleFreeTable = async (e, table) => {
+      e.stopPropagation(); // IMPORTANTE: Evita que el click se propague y abra la mesa
 
-        if (table.status === 'occupied') {
-            // 1. VALIDACIÓN DE PROPIEDAD
-            // Si NO soy admin Y la mesa tiene un mesero asignado Y ese mesero NO soy yo...
-            if (!isAdmin && table.current_waiter_id && table.current_waiter_id !== user.id) {
-                return Swal.fire({
-                    title: 'Acceso Restringido',
-                    text: 'Esta mesa está siendo atendida por otro compañero.',
-                    icon: 'warning',
-                    confirmButtonText: 'Entendido'
-                });
-            }
+      // Confirmación rápida
+      const result = await Swal.fire({
+          title: t('orderManager.releaseTable'),
+          text: t('orderManager.accountGoesToCashier'),
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#3085d6',
+          cancelButtonColor: '#d33',
+          confirmButtonText: t('orderManager.yesRelease')
+      });
 
-            if (table.current_order_id) {
-                navigate(`/orders/${table.current_order_id}`);
-            } else {
-                // Caso raro: Ocupada pero sin ID de orden en el front (Sync error)
-                await queryClient.invalidateQueries(['tables']);
-            }
-        } else {
-            // ABRIR MESA
-            const result = await Swal.fire({
-                title: `¿Abrir ${table.table_number}?`,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#3085d6',
-                confirmButtonText: 'Sí, abrir'
-            });
+      if (result.isConfirmed) {
+          // 1. UI OPTIMISTA: Bloqueamos la mesa visualmente YA (sin esperar al backend)
+          setReleasingTableId(table.id);
 
-            if (result.isConfirmed) {
-                Swal.fire({ title: 'Abriendo...', didOpen: () => Swal.showLoading() });
-                try {
-                    const newOrder = await openTable(table.id);
-                    const targetId = newOrder?.id || newOrder?.data?.id;
-                    if (targetId) {
-                        Swal.close();
-                        navigate(`/orders/${targetId}`);
-                    }
-                } catch (error) {
-                    Swal.fire('Error', 'No se pudo abrir la mesa.', 'error');
-                }
-            }
-        }
-    };
+          try {
+              // 2. Llamada al Backend
+              await closeOrderAndFreeTable(table.current_order_id);
+              
+              // 3. Éxito: Recargamos la lista para verla verde de nuevo
+              await loadTables();
+              
+              Swal.fire({
+                  icon: 'success',
+                  title: t('common.success'),
+                  text: t('orderManager.tableReleasedForPayment'),
+                  timer: 1500,
+                  showConfirmButton: false
+              });
 
-  if (isLoading) return <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin w-10 h-10 text-primary" /></div>;
+          } catch (error) {
+              console.error(error);
+              Swal.fire(t('common.error'), t('orderManager.error'), 'error');
+          } finally {
+              // 4. Desbloqueamos el estado (ya sea éxito o error)
+              setReleasingTableId(null);
+          }
+      }
+  };
+
+  // Filtrado local
+  const filteredTables = tables.filter(table => {
+      const matchesSearch = table.table_number.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = filterStatus === 'all' || table.status === filterStatus;
+      return matchesSearch && matchesStatus;
+  });
+
+  if (loadingTables) return (
+      <div className="flex h-full items-center justify-center">
+          <Loader2 className="animate-spin text-primary w-12 h-12"/>
+      </div>
+  );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in p-2 md:p-0">
       
-      {/* HEADER */}
-      <div className="flex flex-col xl:flex-row justify-between items-center gap-4 bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-            <Armchair className="text-primary" /> {viewMode === 'active' ? 'Gestión de Mesas' : 'Mesas Eliminadas'}
-        </h2>
-        
-        <div className="flex gap-3 w-full xl:w-auto">
-            {isAdmin && ( 
-                <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
-                    <button onClick={() => setViewMode('active')} className={`px-4 py-2 rounded-lg text-sm font-bold transition ${viewMode === 'active' ? 'bg-white shadow text-primary' : 'text-gray-500'}`}>Piso</button>
-                    <button onClick={() => setViewMode('trash')} className={`px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ${viewMode === 'trash' ? 'bg-white shadow text-red-500' : 'text-gray-500'}`}><Archive size={16} /></button>
-                </div>
-            )}
-            
-            <div className="relative flex-1">
-                <Search className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
-                <input type="text" placeholder="Buscar mesa..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border-none rounded-xl focus:ring-2 focus:ring-primary outline-none dark:text-white"/>
-            </div>
+      {/* --- HEADER Y FILTROS --- */}
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+              <Armchair className="text-primary"/> {t('tables.tableManagement')}
+          </h2>
 
-            {viewMode === 'active' && isAdmin && ( 
-                <button onClick={handleOpenCreate} className="flex items-center justify-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95">
-                    <Plus size={18} /> <span className="hidden sm:inline">Nueva Mesa</span>
-                </button>
-            )}
-        </div>
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+              {/* Buscador */}
+              <div className="relative flex-1 sm:flex-initial">
+                  <Search className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
+                  <input 
+                      type="text" 
+                      placeholder={t('tables.searchTablePlaceholder')} 
+                      value={searchTerm} 
+                      onChange={(e) => setSearchTerm(e.target.value)} 
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border-none rounded-xl outline-none dark:text-white"
+                  />
+              </div>
+
+              {/* Filtro de Estado */}
+              <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+                  <button 
+                      onClick={() => setFilterStatus('all')} 
+                      className={`px-4 py-2 rounded-lg text-sm font-bold transition ${filterStatus === 'all' ? 'bg-white shadow text-primary' : 'text-gray-500'}`}
+                  >
+                      {t('orderManager.all')}
+                  </button>
+                  <button 
+                      onClick={() => setFilterStatus('occupied')} 
+                      className={`px-4 py-2 rounded-lg text-sm font-bold transition ${filterStatus === 'occupied' ? 'bg-white shadow text-red-500' : 'text-gray-500'}`}
+                  >
+                      Ocupadas
+                  </button>
+                  <button 
+                      onClick={() => setFilterStatus('available')} 
+                      className={`px-4 py-2 rounded-lg text-sm font-bold transition ${filterStatus === 'available' ? 'bg-white shadow text-green-500' : 'text-gray-500'}`}
+                  >
+                      Libres
+                  </button>
+              </div>
+          </div>
       </div>
-
-      {/* GRID DE MESAS */}
+      
+      {/* --- GRID DE MESAS --- */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {filteredList.map((table) => {
+        {filteredTables.map((table) => {
+            const isReleasing = releasingTableId === table.id;
             const isOccupied = table.status === 'occupied';
-            // Validamos visualmente si la mesa es mía o no
-            const isMyTable = table.current_waiter_id === user.id;
-            const isLocked = isOccupied && !isMyTable && !isAdmin;
+            const isAvailable = table.status === 'available';
 
-            const bgClass = isOccupied 
-                ? (isLocked ? 'bg-gray-100 dark:bg-gray-800 border-gray-300 opacity-75' : 'bg-red-50 dark:bg-red-900/10 border-red-200') 
-                : 'bg-white dark:bg-dark-card border-gray-100 dark:border-gray-700';
+            // Determinar si tengo permiso sobre esta mesa
+            const canManage = hasRole(['admin', 'super-admin']) || table.current_order?.waiter_id === user.id;
 
             return (
                 <div 
-                    key={table.id} 
-                    onClick={() => handleTableClick(table)}
-                    className={`relative p-5 rounded-2xl border-2 transition-all hover:shadow-md group cursor-pointer ${bgClass} ${isOccupied ? 'border-red-400 dark:border-red-800' : 'hover:border-primary/50'}`}
+                    key={table.id}
+                    onClick={() => !isReleasing && handleTableClick(table)}
+                    className={`
+                        relative p-4 rounded-2xl border-2 transition-all cursor-pointer shadow-sm hover:shadow-md group select-none
+                        ${isReleasing ? 'bg-gray-100 border-gray-300 opacity-70 pointer-events-none' : ''} 
+                        ${isAvailable ? 'bg-white dark:bg-dark-card border-gray-200 dark:border-gray-700 hover:border-green-400' : ''}
+                        ${isOccupied ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 hover:border-red-400' : ''}
+                    `}
                 >
-                    
-                    <div className="flex justify-between items-start mb-2">
-                        <span className="font-bold text-lg text-gray-800 dark:text-gray-100">{table.table_number}</span>
-                        {/* Indicador de estado */}
-                        {isLocked ? (
-                            <Lock size={16} className="text-gray-400"/>
-                        ) : (
-                            <span className={`w-3 h-3 rounded-full ${isOccupied ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></span>
-                        )}
-                    </div>
-
-                    <div className="flex justify-center my-4 opacity-80">
-                         <div className={`relative w-16 h-16 rounded-lg flex items-center justify-center ${isOccupied ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-400 dark:bg-gray-800'}`}>
-                            <Square size={32} />
-                            {/* Decoración silla */}
-                            <div className="absolute -top-1 w-8 h-1 bg-gray-300 rounded-full"></div>
-                            <div className="absolute -bottom-1 w-8 h-1 bg-gray-300 rounded-full"></div>
-                         </div>
-                    </div>
-
-                    <div className="text-center mb-4">
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
-                            <Users size={12} /> {table.capacity} personas
-                        </span>
-                        {isOccupied && (
-                            <p className={`text-xs font-bold mt-1 ${isLocked ? 'text-gray-500' : 'text-red-500'}`}>
-                                {isLocked ? 'OCUPADA (Otro)' : 'ATENDIENDO'}
-                            </p>
-                        )}
-                    </div>
-
-                    {/* ACCIONES (SOLO ADMIN) */}
-                    {isAdmin && (
-                        <div className="flex gap-2 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            {viewMode === 'active' ? (
-                                <>
-                                    <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(table); }} className="p-2 bg-white shadow-sm border rounded-lg hover:text-blue-600"><Pencil size={14}/></button>
-                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(table.id, table.status); }} className="p-2 bg-white shadow-sm border rounded-lg hover:text-red-600"><Trash2 size={14}/></button>
-                                </>
-                            ) : (
-                                <button onClick={(e) => { e.stopPropagation(); restoreTable(table.id); }} className="flex items-center gap-1 px-3 py-1 bg-green-50 text-green-600 rounded-lg text-xs font-bold"><RotateCcw size={14}/> Restaurar</button>
-                            )}
+                    {/* SPINNER SI SE ESTÁ LIBERANDO */}
+                    {isReleasing && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-black/50 rounded-2xl z-20 backdrop-blur-sm">
+                            <Loader2 className="animate-spin text-primary w-8 h-8 mb-2"/>
+                            <span className="text-xs font-bold text-gray-600 dark:text-gray-300">Procesando...</span>
                         </div>
+                    )}
+
+                    {/* Cabecera Mesa */}
+                    <div className="flex justify-between items-start mb-2">
+                        <span className={`text-lg font-black ${isOccupied ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-200'}`}>
+                            {table.table_number}
+                        </span>
+                        <span className="flex items-center gap-1 text-xs font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
+                            <Users size={12}/> {table.capacity}p
+                        </span>
+                    </div>
+
+                    {/* Icono Central */}
+                    <div className="flex flex-col items-center py-4">
+                        <Armchair size={48} className={`mb-2 transition-colors duration-300 ${isOccupied ? 'text-red-400' : 'text-green-400'}`} />
+                        <span className={`text-xs font-bold uppercase tracking-wider ${isOccupied ? 'text-red-500' : 'text-green-500'}`}>
+                            {isOccupied ? t('tables.serving') : t('tables.available')}
+                        </span>
+                        {/* Mostrar nombre del mesero si está ocupada */}
+                        {isOccupied && table.current_order?.waiter && (
+                            <span className="text-[10px] text-gray-400 mt-1 truncate max-w-full">
+                                {table.current_order.waiter.first_names}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* BOTÓN LIBERAR/COBRAR */}
+                    {isOccupied && canManage && (
+                        <button 
+                            onClick={(e) => handleFreeTable(e, table)}
+                            disabled={isReleasing}
+                            className="w-full mt-2 py-2.5 bg-white dark:bg-dark-bg border border-red-200 dark:border-red-900 text-red-500 dark:text-red-400 text-xs font-bold rounded-xl hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center justify-center gap-2 transition z-10 relative shadow-sm active:scale-95"
+                        >
+                            <DollarSign size={14}/> {t('orderManager.collectAccount')}
+                        </button>
                     )}
                 </div>
             );
         })}
       </div>
-
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingTable ? "Editar Mesa" : "Nueva Mesa"}>
-        <form onSubmit={handleSubmit} className="space-y-4">
-            {/* ... Formulario igual ... */}
-            <div><label className="text-sm font-bold">Identificador</label><input type="text" required autoFocus className="input-base w-full p-3 border rounded-xl" value={form.table_number} onChange={e => setForm({...form, table_number: e.target.value})} /></div>
-            <div><label className="text-sm font-bold">Capacidad</label><input type="number" required min="1" className="input-base w-full p-3 border rounded-xl" value={form.capacity} onChange={e => setForm({...form, capacity: e.target.value})} /></div>
-            <div className="pt-2 flex gap-3">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-gray-100 font-bold rounded-xl">Cancelar</button>
-                <button type="submit" disabled={isCreating} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl">{isCreating ? <Loader2 className="animate-spin"/> : 'Guardar'}</button>
-            </div>
-        </form>
-      </Modal>
     </div>
   );
 };

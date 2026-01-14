@@ -1,15 +1,20 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import io from 'socket.io-client';
 
-const SocketContext = createContext();
+// 👇 AQUÍ AGREGAMOS "export" PARA QUE OTROS ARCHIVOS PUEDAN USARLO
+export const SocketContext = createContext();
 
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
 
   useEffect(() => {
-    // Conectar a tu Backend (Asumiendo puerto 3000)
-    const newSocket = io('http://localhost:3000', {
-      transports: ['websocket'], // Forzamos WebSocket para máxima velocidad
+    // Extraemos la URL base de la variable de entorno, con un fallback
+    const baseURL = import.meta.env.VITE_API_URL 
+      ? new URL(import.meta.env.VITE_API_URL).origin 
+      : 'http://localhost:3000';
+
+    const newSocket = io(baseURL, {
+      transports: ['websocket'],
       autoConnect: true,
     });
 
@@ -29,5 +34,6 @@ export const SocketProvider = ({ children }) => {
     </SocketContext.Provider>
   );
 };
+
 
 export const useSocket = () => useContext(SocketContext);

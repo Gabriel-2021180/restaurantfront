@@ -31,5 +31,21 @@ export default {
     };
     const { data } = await api.post('/auth/forgot-password/reset', payload);
     return data;
+  },
+  getProfile: async () => {
+    const { data } = await api.get('/auth/profile'); // Ruta para obtener datos frescos del usuario
+    return data;
+  },
+
+  setupSecurityQuestion: async (payload) => {
+    // payload: { question, answer, current_password }
+    const { data } = await api.patch('/auth/security-question', payload);
+    return data;
+  },
+  
+  verifySecurityAnswer: async (answer) => {
+      // Para validar antes de acciones críticas si es necesario
+      const { data } = await api.post('/auth/verify-security', { answer });
+      return data;
   }
 };

@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCategories } from '../../hooks/useCategories';
 import Modal from '../../components/ui/Modal';
 import { Plus, Search, Pencil, Trash2, RotateCcw, Archive, Layers, Loader2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 const Categories = () => {
+  const { t } = useTranslation();
   const { 
     categories, trash, isLoading, 
     createCategory, updateCategory, deleteCategory, restoreCategory 
@@ -52,32 +54,32 @@ const Categories = () => {
 
   const handleDelete = (id) => {
     Swal.fire({
-      title: '¿Desactivar Categoría?',
+      title: t('categories.deactivateCategory'),
       html: `
         <div class="text-left text-sm text-gray-600 dark:text-gray-300">
-          <p class="mb-2">Estás a punto de enviar esta categoría a la papelera.</p>
+          <p class="mb-2">${t('categories.aboutToMoveToTrash')}</p>
           <p class="font-bold text-red-500 bg-red-50 p-3 rounded-lg border border-red-100">
-            ⚠️ ¡CUIDADO! <br/>
-            Todos los productos asociados a esta categoría también podrían desactivarse o quedar ocultos en el menú.
+            ⚠️ ${t('categories.caution')} <br/>
+            ${t('categories.productsMayBeDeactivated')}
           </p>
         </div>
       `,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
-      confirmButtonText: 'Sí, borrar y desactivar productos',
-      cancelButtonText: 'Cancelar'
+      confirmButtonText: t('categories.yesDeleteAndDeactivate'),
+      cancelButtonText: t('categories.cancel')
     }).then((r) => { if (r.isConfirmed) deleteCategory(id); });
   };
 
   const handleRestore = (id) => {
     Swal.fire({
-      title: '¿Restaurar categoría?',
-      text: "Volverá a estar visible en el menú.",
+      title: t('categories.restoreCategory'),
+      text: t('categories.willBeVisibleAgain'),
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#10B981',
-      confirmButtonText: 'Sí, restaurar'
+      confirmButtonText: t('categories.yesRestore')
     }).then((r) => { if (r.isConfirmed) restoreCategory(id); });
   };
 
@@ -121,21 +123,21 @@ const Categories = () => {
       <div className="flex flex-col xl:flex-row justify-between items-center gap-4 bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
             <Layers className="text-primary" />
-            {viewMode === 'active' ? 'Categorías del Menú' : 'Categorías Archivadas'}
+            {viewMode === 'active' ? t('categories.menuCategories') : t('categories.archivedCategories')}
         </h2>
         
         <div className="flex flex-col sm:flex-row w-full xl:w-auto gap-3">
             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
-                <button onClick={() => setViewMode('active')} className={`px-4 py-2 rounded-lg text-sm font-bold transition ${viewMode === 'active' ? 'bg-white dark:bg-gray-600 shadow-sm text-primary dark:text-white' : 'text-gray-500'}`}>Activas</button>
-                <button onClick={() => setViewMode('trash')} className={`px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ${viewMode === 'trash' ? 'bg-white dark:bg-gray-600 shadow-sm text-red-500' : 'text-gray-500'}`}><Archive size={16} /> Papelera</button>
+                <button onClick={() => setViewMode('active')} className={`px-4 py-2 rounded-lg text-sm font-bold transition ${viewMode === 'active' ? 'bg-white dark:bg-gray-600 shadow-sm text-primary dark:text-white' : 'text-gray-500'}`}>{t('categories.active')}</button>
+                <button onClick={() => setViewMode('trash')} className={`px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ${viewMode === 'trash' ? 'bg-white dark:bg-gray-600 shadow-sm text-red-500' : 'text-gray-500'}`}><Archive size={16} /> {t('categories.trash')}</button>
             </div>
             <div className="relative flex-1">
                 <Search className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
-                <input type="text" placeholder="Buscar sección..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border-none rounded-xl focus:ring-2 focus:ring-primary outline-none dark:text-white transition-all"/>
+                <input type="text" placeholder={t('categories.searchSection')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border-none rounded-xl focus:ring-2 focus:ring-primary outline-none dark:text-white transition-all"/>
             </div>
             {viewMode === 'active' && (
                 <button onClick={handleOpenCreate} className="flex items-center justify-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95">
-                    <Plus size={18} /> <span className="hidden sm:inline">Nueva</span>
+                    <Plus size={18} /> <span className="hidden sm:inline">{t('categories.new')}</span>
                 </button>
             )}
         </div>
@@ -147,10 +149,10 @@ const Categories = () => {
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 dark:bg-gray-800 text-xs uppercase font-bold text-gray-500 dark:text-gray-400">
               <tr>
-                <th className="px-6 py-4">Nombre</th>
-                <th className="px-6 py-4">Descripción</th>
+                <th className="px-6 py-4">{t('categories.name')}</th>
+                <th className="px-6 py-4">{t('categories.description')}</th>
                 
-                <th className="px-6 py-4 text-center">Acciones</th>
+                <th className="px-6 py-4 text-center">{t('categories.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -168,14 +170,14 @@ const Categories = () => {
                             <button onClick={() => handleDelete(cat.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
                             </>
                         ) : (
-                            <button onClick={() => handleRestore(cat.id)} className="text-green-600 hover:bg-green-50 p-2 rounded-lg flex items-center gap-1 font-bold text-xs"><RotateCcw size={16}/> Restaurar</button>
+                            <button onClick={() => handleRestore(cat.id)} className="text-green-600 hover:bg-green-50 p-2 rounded-lg flex items-center gap-1 font-bold text-xs"><RotateCcw size={16}/> {t('categories.restore')}</button>
                         )}
                         </div>
                     </td>
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="4" className="px-6 py-10 text-center text-gray-400">Sin resultados</td></tr>
+                <tr><td colSpan="4" className="px-6 py-10 text-center text-gray-400">{t('categories.noResults')}</td></tr>
               )}
             </tbody>
           </table>
@@ -186,11 +188,11 @@ const Categories = () => {
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => !isSubmitting && setIsModalOpen(false)} 
-        title={editingCategory ? "Editar Categoría" : "Nueva Categoría"}
+        title={editingCategory ? t('categories.editCategory') : t('categories.newCategory')}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Nombre</label>
+            <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('categories.name')}</label>
             <input 
                 type="text" 
                 required 
@@ -198,13 +200,13 @@ const Categories = () => {
                 className="input-base w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white" 
                 value={name} 
                 onChange={e => setName(e.target.value)} 
-                placeholder="Ej: Bebidas, Postres..." 
+                placeholder={t('categories.namePlaceholder')} 
                 disabled={isSubmitting} // Bloquear
             />
           </div>
 
           <div>
-            <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Descripción (Opcional)</label>
+            <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('categories.descriptionOptional')}</label>
             <textarea 
                 rows="2" 
                 className="input-base w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white resize-none" 
@@ -224,7 +226,7 @@ const Categories = () => {
                 disabled={isSubmitting} // Bloquear
             />
             <label htmlFor="isActiveCheck" className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">
-                Mostrar categoría en el menú
+                {t('categories.showCategoryInMenu')}
             </label>
           </div>
 
@@ -235,7 +237,7 @@ const Categories = () => {
                 className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 font-bold rounded-xl"
                 disabled={isSubmitting}
             >
-                Cancelar
+                {t('categories.cancel')}
             </button>
             <button 
                 type="submit" 
@@ -246,10 +248,10 @@ const Categories = () => {
                 {isSubmitting ? (
                     <>
                         <Loader2 className="animate-spin" size={20}/>
-                        <span>Guardando...</span>
+                        <span>{t('categories.saving')}</span>
                     </>
                 ) : (
-                    editingCategory ? 'Guardar' : 'Crear'
+                    editingCategory ? t('categories.save') : t('categories.create')
                 )}
             </button>
           </div>

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import userService from '../../services/userService';
 import Modal from '../../components/ui/Modal';
 import { Users, UserPlus, Copy, RefreshCw } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 const UsersPage = () => {
+  const { t } = useTranslation();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -34,7 +36,7 @@ const UsersPage = () => {
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generatedCode.code);
-    Swal.fire('Copiado', 'Código copiado al portapapeles', 'success');
+    Swal.fire(t('usersPage.copied'), t('usersPage.codeCopied'), 'success');
   };
 
   const closeInviteModal = () => {
@@ -46,9 +48,9 @@ const UsersPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
-        <h2 className="text-2xl font-bold flex gap-2"><Users/> Equipo de Trabajo</h2>
+        <h2 className="text-2xl font-bold flex gap-2"><Users/> {t('usersPage.workTeam')}</h2>
         <button onClick={() => setIsInviteOpen(true)} className="bg-primary text-white px-4 py-2 rounded-lg font-bold flex gap-2">
-            <UserPlus size={18}/> Generar Invitación
+            <UserPlus size={18}/> {t('usersPage.generateInvitation')}
         </button>
       </div>
 
@@ -64,30 +66,30 @@ const UsersPage = () => {
       </div>
 
       {/* MODAL INVITACIÓN */}
-      <Modal isOpen={isInviteOpen} onClose={closeInviteModal} title="Generar Código de Acceso">
+      <Modal isOpen={isInviteOpen} onClose={closeInviteModal} title={t('usersPage.generateAccessCode')}>
         {!generatedCode ? (
             <div className="space-y-4">
-                <p className="text-sm text-gray-600">Selecciona qué rol tendrá el nuevo empleado.</p>
+                <p className="text-sm text-gray-600">{t('usersPage.selectNewEmployeeRole')}</p>
                 <select className="w-full p-3 border rounded-xl" value={selectedRole} onChange={e=>setSelectedRole(e.target.value)}>
-                    <option value="">Seleccionar Rol...</option>
+                    <option value="">{t('usersPage.selectRole')}</option>
                     {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </select>
                 <button onClick={handleGenerateInvite} disabled={!selectedRole} className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl">
-                    Crear Código
+                    {t('usersPage.createCode')}
                 </button>
             </div>
         ) : (
             <div className="text-center space-y-4">
                 <div className="bg-gray-100 p-4 rounded-xl border border-dashed border-gray-400">
-                    <p className="text-xs text-gray-500 uppercase mb-1">Código generado</p>
+                    <p className="text-xs text-gray-500 uppercase mb-1">{t('usersPage.generatedCode')}</p>
                     <p className="text-3xl font-mono font-black tracking-widest text-indigo-600">{generatedCode.code}</p>
                 </div>
-                <p className="text-xs text-red-500">Expira en 24 horas</p>
+                <p className="text-xs text-red-500">{t('usersPage.expiresIn24Hours')}</p>
                 
                 <button onClick={copyToClipboard} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl flex justify-center gap-2">
-                    <Copy/> Copiar para WhatsApp
+                    <Copy/> {t('usersPage.copyForWhatsapp')}
                 </button>
-                <button onClick={closeInviteModal} className="text-sm text-gray-500 underline">Cerrar</button>
+                <button onClick={closeInviteModal} className="text-sm text-gray-500 underline">{t('usersPage.close')}</button>
             </div>
         )}
       </Modal>

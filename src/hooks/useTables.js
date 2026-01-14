@@ -12,10 +12,7 @@ export const useTables = () => {
   const tablesQuery = useQuery({
     queryKey: ['tables'],
     queryFn: tableService.getAll,
-    // CAMBIO IMPORTANTE: Quitamos staleTime: Infinity
-    // Dejamos el comportamiento por defecto (staleTime: 0)
-    // Esto asegura que al montar el componente siempre traiga datos frescos
-    // staleTime: Infinity, <--- COMENTADO/BORRADO
+    // staleTime: 0 por defecto, así que siempre intentará refrescar al montar
   });
 
   const trashQuery = useQuery({
@@ -24,6 +21,7 @@ export const useTables = () => {
     staleTime: 1000 * 60 * 5,
   });
 
+  // Función interna para invalidar caché
   const refreshAll = () => {
     queryClient.invalidateQueries(['tables']);
     queryClient.invalidateQueries(['tables-trash']);
@@ -35,6 +33,7 @@ export const useTables = () => {
 
     socket.on('table_status_changed', (data) => {
         console.log("🪑 CAMBIO MESA:", data);
+        // Invalidamos para que React Query haga el refetch automático
         queryClient.invalidateQueries(['tables']);
     });
 
@@ -44,9 +43,10 @@ export const useTables = () => {
   // --- MANEJO DE ERRORES ---
   const handleError = (error) => {
     console.error("Error Mesas:", error);
+    Swal.fire('Error', 'Operación fallida', 'error');
   };
 
-  // --- MUTACIONES (IGUALES) ---
+  // --- MUTACIONES ---
   const createMutation = useMutation({
     mutationFn: tableService.create,
     onSuccess: () => { refreshAll(); Swal.fire('Creada', 'Mesa lista.', 'success'); },
@@ -75,6 +75,10 @@ export const useTables = () => {
     tables: tablesQuery.data || [],
     trash: trashQuery.data || [],
     isLoading: tablesQuery.isLoading,
+    
+
+    loadTables: tablesQuery.refetch, 
+
     isCreating: createMutation.isPending,
     createTable: createMutation.mutateAsync,
     updateTable: updateMutation.mutateAsync,

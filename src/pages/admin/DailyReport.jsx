@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { financeService } from '../../services/financeService';
 import analyticsService from '../../services/analyticsService'; // Importar Analytics
 import { TrendingUp, Banknote, QrCode, CreditCard, Calendar, Utensils, ShoppingBag, Loader2 } from 'lucide-react';
 
 const DailyReport = () => {
+  const { t } = useTranslation();
   const [report, setReport] = useState(null);
   const [channels, setChannels] = useState(null); // Nuevo estado para canales
   const [loading, setLoading] = useState(true);
@@ -22,7 +24,7 @@ const DailyReport = () => {
       setReport(reportData);
       setChannels(channelData);
     } catch (error) {
-      console.error("Error cargando reporte", error);
+      console.error(t("dailyReport.errorLoadingReport"), error);
     } finally {
       setLoading(false);
     }
@@ -30,7 +32,7 @@ const DailyReport = () => {
 
   if (loading) return <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin text-primary w-10 h-10"/></div>;
 
-  if (!report) return <div className="p-10 text-center text-gray-500">No hay datos disponibles para hoy.</div>;
+  if (!report) return <div className="p-10 text-center text-gray-500">{t("dailyReport.noDataAvailable")}</div>;
 
   const getIcon = (method) => {
     if (method === 'QR') return <QrCode className="text-purple-500" />;
@@ -44,14 +46,14 @@ const DailyReport = () => {
       <div className="flex flex-col md:flex-row justify-between items-center bg-gradient-to-r from-primary to-indigo-600 p-6 rounded-3xl shadow-lg text-white">
         <div>
             <h2 className="text-3xl font-black flex items-center gap-3">
-                <TrendingUp size={32}/> Resumen de Caja
+                <TrendingUp size={32}/> {t("dailyReport.cashSummary")}
             </h2>
             <p className="opacity-90 mt-1 flex items-center gap-2">
                 <Calendar size={16}/> {new Date().toLocaleDateString()}
             </p>
         </div>
         <div className="text-right mt-4 md:mt-0 bg-white/20 p-4 rounded-2xl backdrop-blur-sm">
-            <p className="text-sm font-bold uppercase tracking-wider opacity-80">Total Recaudado</p>
+            <p className="text-sm font-bold uppercase tracking-wider opacity-80">{t("dailyReport.totalCollected")}</p>
             <p className="text-4xl font-black">{report.grand_total} {report.currency || 'Bs'}</p>
         </div>
       </div>
@@ -59,23 +61,24 @@ const DailyReport = () => {
       {/* --- NUEVO: VS CANALES (MESAS vs PEDIDOS) --- */}
       {channels && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <ChannelCard 
-                  title="Mesas (Comedor)" 
-                  data={channels.dine_in} 
-                  icon={<Utensils size={24}/>} 
-                  color="text-orange-600" 
-                  bgColor="bg-orange-50"
-                  isWinner={channels.winner === 'Mesas'}
-              />
-              <ChannelCard 
-                  title="Pedidos (Para Llevar)" 
-                  data={channels.pickup} 
-                  icon={<ShoppingBag size={24}/>} 
-                  color="text-blue-600" 
-                  bgColor="bg-blue-50"
-                  isWinner={channels.winner === 'Pedidos' || channels.winner === 'Pickup'}
-              />
-          </div>
+                            <ChannelCard 
+                                title={t("dailyReport.tablesDineIn")}
+                                data={channels.dine_in} 
+                                icon={<Utensils size={24}/>} 
+                                color="text-orange-600" 
+                                bgColor="bg-orange-50"
+                                isWinner={channels.winner === 'Mesas'}
+                                t={t}
+                            />
+                            <ChannelCard 
+                                title={t("dailyReport.ordersToTakeAway")}
+                                data={channels.pickup} 
+                                icon={<ShoppingBag size={24}/>} 
+                                color="text-blue-600" 
+                                bgColor="bg-blue-50"
+                                isWinner={channels.winner === 'Pedidos' || channels.winner === 'Pickup'}
+                                t={t}
+                            />          </div>
       )}
 
       {/* CARDS DE MÉTODOS DE PAGO */}
@@ -87,7 +90,7 @@ const DailyReport = () => {
                         {getIcon(item.method)}
                     </div>
                     <span className="text-xs font-bold bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-500 dark:text-gray-300">
-                        {item.count} Pagos
+                        {item.count} {t("dailyReport.payments")}
                     </span>
                 </div>
                 <div>
@@ -104,7 +107,7 @@ const DailyReport = () => {
 };
 
 // Componente visual para las tarjetas VS
-const ChannelCard = ({ title, data, icon, color, bgColor, isWinner }) => (
+const ChannelCard = ({ title, data, icon, color, bgColor, isWinner, t }) => (
     <div className={`p-6 rounded-2xl border-2 flex items-center justify-between transition-all ${isWinner ? 'bg-white border-green-400 shadow-md ring-2 ring-green-50' : 'bg-white border-gray-100 dark:bg-dark-card dark:border-gray-700'}`}>
         <div>
             <div className="flex items-center gap-2 mb-1">
@@ -112,12 +115,12 @@ const ChannelCard = ({ title, data, icon, color, bgColor, isWinner }) => (
                 <span className="text-sm font-bold text-gray-500 uppercase">{title}</span>
             </div>
             <p className="text-3xl font-black text-gray-800 dark:text-white">{data?.total || 0} Bs</p>
-            <p className="text-xs text-gray-400 font-bold mt-1">{data?.count || 0} cuentas atendidas</p>
+            <p className="text-xs text-gray-400 font-bold mt-1">{data?.count || 0} {t("dailyReport.accountsAttended")}</p>
         </div>
         {isWinner && (
             <div className="text-center">
                 <span className="text-2xl">🏆</span>
-                <p className="text-[10px] font-black text-green-600 uppercase">Líder</p>
+                <p className="text-[10px] font-black text-green-600 uppercase">{t("dailyReport.leader")}</p>
             </div>
         )}
     </div>

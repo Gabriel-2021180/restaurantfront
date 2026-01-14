@@ -60,6 +60,43 @@ export default {
     const { data } = await api.get('/orders?status=completed&pending_tip=true');
     return data; 
     // Retorna array de órdenes que AÚN NO tienen registro en la tabla 'tips'
+  },
+  updateProfile: async (data) => {
+    // data: { phone, address, etc }
+    const response = await api.patch('/users/profile', data);
+    return response.data;
+  },
+
+  // SOLICITAR cambio (Paso 1)
+  requestEmailChange: async (payload) => {
+    // payload: { new_email, mode: 'standard'|'lost_access', security_answer? }
+    const { data } = await api.post('/users/request-email-change', payload);
+    return data; // Retorna: { step: 'verify_code' | 'done' }
+  },
+
+  // VERIFICAR código (Paso 2 - Solo modo standard)
+  verifyEmailChange: async (code) => {
+    // Esto enviará un JSON: { "code": "123456" }
+    const { data } = await api.post('/users/verify-email-change', { code }); 
+    return data;
+  },
+  
+  getNotifications: async () => {
+    // Asegúrate de crear esta ruta en tu Backend (UsersController)
+    const { data } = await api.get('/users/notifications');
+    return data; 
+  },
+
+  // 2. Marcar una como leída
+  markNotificationAsRead: async (id) => {
+    const { data } = await api.patch(`/users/notifications/${id}/read`);
+    return data;
+  },
+
+  // 3. Marcar todas como leídas
+  markAllNotificationsAsRead: async () => {
+    const { data } = await api.patch('/users/notifications/read-all');
+    return data;
   }
 
   

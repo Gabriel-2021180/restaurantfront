@@ -1,17 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo,useEffect, useContext  } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useProducts } from '../../hooks/useProducts';
 import { useInventory } from '../../hooks/useInventory';
 import { useCategories } from '../../hooks/useCategories';
 import Modal from '../../components/ui/Modal';
 import SearchableSelect from '../../components/ui/SearchableSelect';
+import { SocketContext } from '../../context/SocketContext'; //
 import { 
     Plus, Layers, Search, Pencil, Trash2, RotateCcw, Image as ImageIcon, 
-    Upload, Loader2, ChefHat, Box, Archive, Gift, Package, AlertCircle 
+    Upload, Loader2, ChefHat, Box, Archive, Gift, Package, AlertCircle, CupSoda
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../../context/AuthContext';
 import productService from '../../services/productService';
 const Products = () => {
+  const { t } = useTranslation();
   const { products, trash, isLoading, createProduct, updateProduct, deleteProduct, restoreProduct } = useProducts();
   const { categories } = useCategories();
   const { supplies } = useInventory(); 
@@ -42,7 +45,7 @@ const Products = () => {
   const [fixedCost, setFixedCost] = useState(''); 
   const [ingredients, setIngredients] = useState([]); 
   const [bundleItems, setBundleItems] = useState([]);
-
+  const { socket } = useContext(SocketContext);
   const sourceData = viewMode === 'active' ? products : trash;
 
   const filteredList = sourceData.filter(product => {
@@ -174,8 +177,8 @@ const Products = () => {
             .filter(i => i.child_product_id && i.quantity > 0)
             .map(i => ({ child_product_id: i.child_product_id, quantity: parseInt(i.quantity) }));
 
-        if (isCombo && cleanBundle.length === 0) throw new Error("El combo debe tener productos.");
-        if (!isCombo && !categoryId) throw new Error("Debes seleccionar una categoría.");
+        if (isCombo && cleanBundle.length === 0) throw new Error(t('products.comboMustHaveProducts'));
+        if (!isCombo && !categoryId) throw new Error(t('products.mustSelectCategory'));
 
         let payload;
 
@@ -242,18 +245,18 @@ const Products = () => {
       
         setIsModalOpen(false);
         resetForm(); 
-        Swal.fire('Éxito', isCombo ? 'Combo guardado' : 'Producto guardado', 'success');
+        Swal.fire(t('products.success'), isCombo ? t('products.comboSaved') : t('products.productSaved'), 'success');
 
     } catch (error) {
-        console.error("Error al guardar:", error);
-        let msg = "Error desconocido";
+        console.error(t('products.errorSaving'), error);
+        let msg = t('products.unknownError');
         if (error.response?.data?.message) {
             const m = error.response.data.message;
             msg = Array.isArray(m) ? m.join('<br>') : m;
         } else if (error.message) {
             msg = error.message;
         }
-        Swal.fire({ title: 'Atención', html: msg, icon: 'warning' });
+        Swal.fire({ title: t('products.attention'), html: msg, icon: 'warning' });
     } finally {
         setIsSubmitting(false);
     }
@@ -267,15 +270,25 @@ const Products = () => {
     }
   };
 
-  const handleDelete = (id) => { Swal.fire({ title: '¿Borrar?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Sí' }).then((r) => { if (r.isConfirmed) deleteProduct(id); }); };
-  const handleRestore = (id) => { Swal.fire({ title: '¿Restaurar?', icon: 'question', showCancelButton: true, confirmButtonText: 'Sí' }).then((r) => { if (r.isConfirmed) restoreProduct(id); }); };
-
+  const handleDelete = (id) => { Swal.fire({ title: t('products.deleteConfirmation'), icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: t('products.yes') }).then((r) => { if (r.isConfirmed) deleteProduct(id); }); };
+  const handleRestore = (id) => { Swal.fire({ title: t('products.restoreConfirmation'), icon: 'question', showCancelButton: true, confirmButtonText: t('products.yes') }).then((r) => { if (r.isConfirmed) restoreProduct(id); }); };
+  
   if (isLoading) return <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12"/></div>;
 
   const getModalTitle = () => {
-      if (!editingProduct) return "Crear Nuevo";
-      return isCombo ? "🎁 Editar Combo" : "✏️ Editar Producto";
+      if (!editingProduct) return <><Plus size={18}/> {t('products.createNew')}</>;
+      return isCombo ? <><Gift size={18}/> {t('products.editCombo')}</> : <><Pencil size={18}/> {t('products.editProduct')}</>;
   };
+  useEffect(() => {
+    if (!socket) return;
+    const handleStockUpdate = (notif) => {
+        if (notif.title.includes('Agotado') || notif.title.includes('Stock')) {
+            window.location.reload(); 
+        }
+    };
+    socket.on('notification', handleStockUpdate);
+    return () => socket.off('notification', handleStockUpdate);
+  }, [socket]);
 
   return (
     <div className="space-y-6">
@@ -284,23 +297,23 @@ const Products = () => {
       <div className="flex flex-col xl:flex-row justify-between items-center gap-4 bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
             <Layers className="text-primary" />
-            {viewMode === 'active' ? 'Menú & Productos' : 'Papelera'}
+            {viewMode === 'active' ? t('products.menuAndProducts') : t('products.trash')}
         </h2>
         
         <div className="flex flex-col sm:flex-row w-full xl:w-auto gap-3">
             {isAdmin && (
                 <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
-                    <button onClick={() => setViewMode('active')} className={`px-4 py-2 rounded-lg text-sm font-bold transition ${viewMode === 'active' ? 'bg-white shadow text-primary' : 'text-gray-500'}`}>Activos</button>
-                    <button onClick={() => setViewMode('trash')} className={`px-4 py-2 rounded-lg text-sm font-bold transition ${viewMode === 'trash' ? 'bg-white shadow text-red-500' : 'text-gray-500'}`}><Archive size={16} /> Papelera</button>
+                    <button onClick={() => setViewMode('active')} className={`px-4 py-2 rounded-lg text-sm font-bold transition ${viewMode === 'active' ? 'bg-white shadow text-primary' : 'text-gray-500'}`}>{t('products.active')}</button>
+                    <button onClick={() => setViewMode('trash')} className={`px-4 py-2 rounded-lg text-sm font-bold transition ${viewMode === 'trash' ? 'bg-white shadow text-red-500' : 'text-gray-500'}`}><Archive size={16} /> {t('products.trash')}</button>
                 </div>
             )}
             <div className="relative flex-1">
                 <Search className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
-                <input type="text" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border-none rounded-xl outline-none dark:text-white"/>
+                <input type="text" placeholder={t('products.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border-none rounded-xl outline-none dark:text-white"/>
             </div>
             {viewMode === 'active' && isAdmin && (
                 <button onClick={handleOpenCreate} className="flex items-center justify-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95">
-                    <Plus size={18} /> <span className="hidden sm:inline">Nuevo</span>
+                    <Plus size={18} /> <span className="hidden sm:inline">{t('products.new')}</span>
                 </button>
             )}
         </div>
@@ -312,11 +325,11 @@ const Products = () => {
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 dark:bg-gray-800 text-xs uppercase font-bold text-gray-500 dark:text-gray-400">
               <tr>
-                <th className="px-6 py-4">Producto</th>
-                <th className="px-6 py-4">Categoría</th>
-                <th className="px-6 py-4">Precio</th>
-                <th className="px-6 py-4">Tipo</th>
-                {isAdmin && <th className="px-6 py-4 text-center">Acciones</th>}
+                <th className="px-6 py-4">{t('products.product')}</th>
+                <th className="px-6 py-4">{t('products.category')}</th>
+                <th className="px-6 py-4">{t('products.price')}</th>
+                <th className="px-6 py-4">{t('products.type')}</th>
+                {isAdmin && <th className="px-6 py-4 text-center">{t('products.actions')}</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -336,16 +349,16 @@ const Products = () => {
                         </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                        {prod.category?.name || (prod.is_combo ? 'COMBO/PROMO' : 'Sin Categoría')}
+                        {prod.category?.name || (prod.is_combo ? t('products.comboPromo') : t('products.noCategory'))}
                     </td>
-                    <td className="px-6 py-4 font-bold text-gray-800 dark:text-white">{prod.price} Bs</td>
+                    <td className="px-6 py-4 font-bold text-gray-800 dark:text-white">{prod.price} {t('common.currency')}</td>
                     <td className="px-6 py-4">
                         {prod.is_combo ? (
-                            <span className="text-xs font-bold bg-purple-100 text-purple-700 px-2 py-1 rounded flex w-fit items-center gap-1"><Gift size={12}/> Combo</span>
+                            <span className="text-xs font-bold bg-purple-100 text-purple-700 px-2 py-1 rounded flex w-fit items-center gap-1"><Gift size={12}/> {t('products.combo')}</span>
                         ) : prod.track_stock ? (
-                            <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded">Reventa</span>
+                            <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded">{t('products.resale')}</span>
                         ) : (
-                            <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-1 rounded">Preparado</span>
+                            <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-1 rounded">{t('products.prepared')}</span>
                         )}
                     </td>
                     {isAdmin && (
@@ -385,7 +398,7 @@ const Products = () => {
                         disabled={!!editingProduct}
                     />
                     <label htmlFor="isComboCheck" className={`text-sm font-bold text-gray-800 dark:text-white flex-1 ${editingProduct ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-                        {isCombo ? '🎁 Es un Combo / Promoción' : '📦 Es un Producto Estándar'}
+                        {isCombo ? t('products.isComboPromotion') : t('products.isStandardProduct')}
                     </label>
                     {isCombo ? <Gift className="text-purple-500"/> : <Package className="text-gray-400"/>}
                 </div>
@@ -393,7 +406,7 @@ const Products = () => {
                 {editingProduct && (
                     <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded-lg border border-amber-100">
                         <AlertCircle size={16}/>
-                        <span>Para cambiar el tipo (Combo/Producto), debes crear uno nuevo.</span>
+                        <span>{t('products.changeProductTypeWarning')}</span>
                     </div>
                 )}
 
@@ -404,18 +417,18 @@ const Products = () => {
                     </div>
                     <div className="flex-1 space-y-3">
                         <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase">Nombre</label>
-                            <input type="text" required className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={name} onChange={e=>setName(e.target.value)} placeholder={isCombo ? "Ej: Promo Kilo" : "Ej: Coca Cola"}/>
+                            <label className="text-xs font-bold text-gray-500 uppercase">{t('products.name')}</label>
+                            <input type="text" required className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={name} onChange={e=>setName(e.target.value)} placeholder={isCombo ? t('products.comboNamePlaceholder') : t('products.productNamePlaceholder')}/>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="text-xs font-bold text-gray-500 uppercase">Precio (Bs)</label>
+                                <label className="text-xs font-bold text-gray-500 uppercase">{t('products.price')} ({t('common.currency')})</label>
                                 <input type="number" step="0.50" required className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white font-bold" value={price} onChange={e=>setPrice(e.target.value)}/>
                             </div>
                             {!isCombo && (
                                 <div>
-                                    <label className="text-xs font-bold text-gray-500 uppercase">Categoría</label>
-                                    <SearchableSelect options={categories} value={categoryId} onChange={setCategoryId} placeholder="Seleccionar..." />
+                                    <label className="text-xs font-bold text-gray-500 uppercase">{t('products.category')}</label>
+                                    <SearchableSelect options={categories} value={categoryId} onChange={setCategoryId} placeholder={t('products.selectPlaceholder')} />
                                 </div>
                             )}
                         </div>
@@ -423,7 +436,7 @@ const Products = () => {
                 </div>
 
                 <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Descripción</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t('products.description')}</label>
                     <textarea rows="2" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white resize-none" value={description} onChange={e=>setDescription(e.target.value)}></textarea>
                 </div>
 
@@ -435,22 +448,22 @@ const Products = () => {
                                 type="button" 
                                 onClick={() => setTrackStock(false)} 
                                 disabled={!!editingProduct}
-                                className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${!trackStock ? 'bg-white shadow text-orange-600' : 'text-gray-400'} ${editingProduct ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-2 ${!trackStock ? 'bg-white shadow text-orange-600' : 'text-gray-400'} ${editingProduct ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
-                                👨‍🍳 Preparado (Cocina)
+                                <ChefHat size={14}/> {t('products.preparedKitchen')}
                             </button>
                             <button 
                                 type="button" 
                                 onClick={() => setTrackStock(true)} 
                                 disabled={!!editingProduct}
-                                className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${trackStock ? 'bg-white shadow text-blue-600' : 'text-gray-400'} ${editingProduct ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-2 ${trackStock ? 'bg-white shadow text-blue-600' : 'text-gray-400'} ${editingProduct ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
-                                🥤 Reventa (Kiosko)
+                                <CupSoda size={14}/> {t('products.resaleKiosk')}
                             </button>
                         </div>
                         {editingProduct && (
                             <div className="text-xs text-gray-400 text-center mb-4 italic">
-                                El tipo de gestión (Cocina/Stock) es permanente.
+                                {t('products.managementTypePermanent')}
                             </div>
                         )}
                     </>
@@ -460,30 +473,30 @@ const Products = () => {
                 {isCombo ? (
                     <div className="space-y-4">
                         <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl border border-purple-100 dark:border-purple-800 space-y-3">
-                            <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300 mb-1"><Package size={18} /> <span className="font-bold text-sm">Contenido del Pack</span></div>
+                            <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300 mb-1"><Package size={18} /> <span className="font-bold text-sm">{t('products.packContent')}</span></div>
                             {bundleItems.map((item, index) => (
                                 <div key={index} className="flex gap-2 mb-2 items-center">
-                                    <div className="flex-1"><SearchableSelect options={products.filter(p => !p.is_combo)} value={item.child_product_id} onChange={(val) => updateBundle(index, 'child_product_id', val)} placeholder="Producto..."/></div>
-                                    <input type="number" placeholder="Cant" className="w-20 p-2 border rounded-lg text-sm text-center font-bold dark:bg-gray-800 dark:text-white" value={item.quantity} onChange={(e) => updateBundle(index, 'quantity', e.target.value)}/>
+                                    <div className="flex-1"><SearchableSelect options={products.filter(p => !p.is_combo)} value={item.child_product_id} onChange={(val) => updateBundle(index, 'child_product_id', val)} placeholder={t('products.productPlaceholder')}/></div>
+                                    <input type="number" placeholder={t('products.quantityShort')} className="w-20 p-2 border rounded-lg text-sm text-center font-bold dark:bg-gray-800 dark:text-white" value={item.quantity} onChange={(e) => updateBundle(index, 'quantity', e.target.value)}/>
                                     <button type="button" onClick={() => removeBundleRow(index)} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
                                 </div>
                             ))}
-                            <button type="button" onClick={addBundleRow} className="text-xs font-bold text-purple-600 hover:underline flex items-center gap-1 mt-2"><Plus size={14}/> Agregar Producto</button>
+                            <button type="button" onClick={addBundleRow} className="text-xs font-bold text-purple-600 hover:underline flex items-center gap-1 mt-2"><Plus size={14}/> {t('products.addProduct')}</button>
                         </div>
                         <div className="p-4 bg-orange-50 dark:bg-orange-900/10 rounded-xl border border-orange-100 dark:border-orange-800 space-y-3">
-                            <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300 mb-1"><ChefHat size={18} /> <span className="font-bold text-sm">Insumos de Cocina</span></div>
+                            <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300 mb-1"><ChefHat size={18} /> <span className="font-bold text-sm">{t('products.kitchenIngredients')}</span></div>
                             {ingredients.map((ing, index) => (
                                 <div key={index} className="flex gap-2 mb-2 items-center">
-                                    <div className="flex-1"><SearchableSelect options={supplies} value={ing.supply_id} onChange={(val) => updateIngredient(index, 'supply_id', val)} placeholder="Insumo..." /></div>
-                                    <input type="number" placeholder="Kg" className="w-20 p-2 border rounded-lg text-sm text-center dark:bg-gray-800 dark:text-white" value={ing.quantity} onChange={(e) => updateIngredient(index, 'quantity', e.target.value)} />
+                                    <div className="flex-1"><SearchableSelect options={supplies} value={ing.supply_id} onChange={(val) => updateIngredient(index, 'supply_id', val)} placeholder={t('products.supplyPlaceholder')} /></div>
+                                    <input type="number" placeholder={t('products.kgShort')} className="w-20 p-2 border rounded-lg text-sm text-center dark:bg-gray-800 dark:text-white" value={ing.quantity} onChange={(e) => updateIngredient(index, 'quantity', e.target.value)} />
                                     <button type="button" onClick={() => removeIngredientRow(index)} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
                                 </div>
                             ))}
-                            <button type="button" onClick={addIngredientRow} className="text-xs font-bold text-orange-600 hover:underline flex items-center gap-1 mt-2"><Plus size={14}/> Agregar Insumo</button>
+                            <button type="button" onClick={addIngredientRow} className="text-xs font-bold text-orange-600 hover:underline flex items-center gap-1 mt-2"><Plus size={14}/> {t('products.addIngredient')}</button>
                         </div>
                         <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
                             <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2">
-                                Costo Fijo / Merma <span className="text-[10px] font-normal text-gray-400">(Empaques, aceite, gas...)</span>
+                                {t('products.fixedCostWaste')} <span className="text-[10px] font-normal text-gray-400">{t('products.packagingOilGas')}</span>
                             </label>
                             <input 
                                 type="number" 
@@ -497,38 +510,38 @@ const Products = () => {
                     </div>
                 ) : trackStock ? (
                     <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-800 space-y-3">
-                        <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 mb-1"><Box size={18} /> <span className="font-bold text-sm">Control de Stock</span></div>
+                        <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 mb-1"><Box size={18} /> <span className="font-bold text-sm">{t('products.stockControl')}</span></div>
                         <div className="grid grid-cols-2 gap-4">
-                            <div><label className="text-xs font-bold text-gray-500 uppercase">Stock Inicial</label><input type="number" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={stock} onChange={e=>setStock(e.target.value)}/></div>
-                            <div><label className="text-xs font-bold text-gray-500 uppercase">Costo Compra</label><input type="number" step="0.50" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={purchasePrice} onChange={e=>setPurchasePrice(e.target.value)}/></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase">{t('products.initialStock')}</label><input type="number" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={stock} onChange={e=>setStock(e.target.value)}/></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase">{t('products.purchaseCost')}</label><input type="number" step="0.50" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={purchasePrice} onChange={e=>setPurchasePrice(e.target.value)}/></div>
                         </div>
                     </div>
                 ) : (
                     <div className="p-4 bg-orange-50 dark:bg-orange-900/10 rounded-xl border border-orange-100 dark:border-orange-800 space-y-3">
-                         <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300 mb-1"><ChefHat size={18} /> <span className="font-bold text-sm">Escandallo (Receta)</span></div>
-                        <div><label className="text-xs font-bold text-gray-500 uppercase">Costo Fijo Extra</label><input type="number" step="0.10" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={fixedCost} onChange={e=>setFixedCost(e.target.value)}/></div>
+                         <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300 mb-1"><ChefHat size={18} /> <span className="font-bold text-sm">{t('products.recipeEscandallo')}</span></div>
+                        <div><label className="text-xs font-bold text-gray-500 uppercase">{t('products.extraFixedCost')}</label><input type="number" step="0.10" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={fixedCost} onChange={e=>setFixedCost(e.target.value)}/></div>
                         <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Ingredientes</label>
+                            <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">{t('products.ingredients')}</label>
                             {ingredients.map((ing, index) => (
                                 <div key={index} className="flex gap-2 mb-2 items-center">
-                                    <div className="flex-1"><SearchableSelect options={supplies} value={ing.supply_id} onChange={(val) => updateIngredient(index, 'supply_id', val)} placeholder="Insumo..." /></div>
-                                    <input type="number" placeholder="Kg" className="w-20 p-2 border rounded-lg text-sm text-center dark:bg-gray-800 dark:text-white" value={ing.quantity} onChange={(e) => updateIngredient(index, 'quantity', e.target.value)} />
+                                    <div className="flex-1"><SearchableSelect options={supplies} value={ing.supply_id} onChange={(val) => updateIngredient(index, 'supply_id', val)} placeholder={t('products.supplyPlaceholder')} /></div>
+                                    <input type="number" placeholder={t('products.kgShort')} className="w-20 p-2 border rounded-lg text-sm text-center dark:bg-gray-800 dark:text-white" value={ing.quantity} onChange={(e) => updateIngredient(index, 'quantity', e.target.value)} />
                                     <button type="button" onClick={() => removeIngredientRow(index)} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
                                 </div>
                             ))}
-                            <button type="button" onClick={addIngredientRow} className="text-xs font-bold text-primary hover:underline flex items-center gap-1 mt-2"><Plus size={14}/> Agregar Insumo</button>
+                            <button type="button" onClick={addIngredientRow} className="text-xs font-bold text-primary hover:underline flex items-center gap-1 mt-2"><Plus size={14}/> {t('products.addIngredient')}</button>
                         </div>
                     </div>
                 )}
 
                 <div className="mt-4 pt-3 border-t border-dashed border-gray-300 flex justify-between items-center text-sm">
-                    <div className="text-gray-500"><p>Costo Estimado: <span className="font-bold">{totalCost.toFixed(2)} Bs</span></p></div>
-                    <div className={`px-3 py-1 rounded-lg font-bold ${((price - totalCost) > 0) ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>Margen: {((price - totalCost)).toFixed(2)} Bs</div>
+                    <div className="text-gray-500"><p>{t('products.estimatedCost')}: <span className="font-bold">{totalCost.toFixed(2)} {t('common.currency')}</span></p></div>
+                    <div className={`px-3 py-1 rounded-lg font-bold ${((price - totalCost) > 0) ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{t('products.margin')}: {((price - totalCost)).toFixed(2)} {t('common.currency')}</div>
                 </div>
 
                 <div className="pt-2 flex gap-3">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-gray-100 font-bold rounded-xl dark:bg-gray-700 dark:text-white">Cancelar</button>
-                    <button type="submit" disabled={isSubmitting} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg hover:bg-primary-dark transition">{isSubmitting ? <Loader2 className="animate-spin mx-auto"/> : 'Guardar'}</button>
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-gray-100 font-bold rounded-xl dark:bg-gray-700 dark:text-white">{t('products.cancel')}</button>
+                    <button type="submit" disabled={isSubmitting} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg hover:bg-primary-dark transition">{isSubmitting ? <Loader2 className="animate-spin mx-auto"/> : t('products.save')}</button>
                 </div>
             </form>
           </Modal>

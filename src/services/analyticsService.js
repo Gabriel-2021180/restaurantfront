@@ -24,8 +24,8 @@ export default {
   },
 
   // 3. Comparativa Anual
-  getYearComparison: async () => {
-    const { data } = await api.get('/analytics/year-comparison');
+  getYearComparison: async (year) => {
+    const { data } = await api.get(`/analytics/year-comparison?year=${year}`);
     return data;
   },
 

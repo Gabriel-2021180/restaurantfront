@@ -49,15 +49,35 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
     window.location.href = '/login';
   };
+  const refreshUser = async () => {
+    try {
+      // Si tenemos token, pedimos los datos frescos
+      if (token) {
+          const freshUser = await authService.getProfile();
+          setUser(freshUser);
+          localStorage.setItem('user', JSON.stringify(freshUser));
+          return freshUser;
+      }
+    } catch (error) {
+      console.error("Error refrescando usuario", error);
+    }
+  };
+
+  const updateUser = (userData) => {
+      setUser(prev => {
+          // Mezclamos los datos viejos con los nuevos
+          const updated = { ...prev, ...userData };
+          // Guardamos en LocalStorage para que persista al F5
+          localStorage.setItem('user', JSON.stringify(updated));
+          return updated;
+      });
+  };
 
   // --- LÓGICA DE ROLES (TRADUCTOR ESPAÑOL -> SYSTEM) ---
   const hasRole = (allowedRoles) => {
     if (!user) return false;
 
-    // 1. MODO DIOS
-    if (user.role_id === '1726aec3-bf20-4c10-8386-9d900164b6de') return true; 
-
-    // 2. OBTENER EL ROL CRUDO (Lo que venga del backend)
+    // 1. OBTENER EL ROL CRUDO (Lo que venga del backend)
     let rawRole = '';
     if (typeof user.role === 'object' && user.role !== null) {
         // Intenta slug, si no name, si no string vacío
@@ -99,7 +119,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated, login, logout, hasRole, loading }}>
+    <AuthContext.Provider value={{ 
+        user, token, isAuthenticated, login, logout, hasRole, loading,
+        refreshUser,updateUser 
+    }}>
       {children}
     </AuthContext.Provider>
   );

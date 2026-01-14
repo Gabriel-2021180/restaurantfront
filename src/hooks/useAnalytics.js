@@ -36,8 +36,8 @@ export const useAnalytics = () => {
 
   // 3. COMPARATIVA AÑOS
   const comparisonQuery = useQuery({
-    queryKey: ['year-comparison'],
-    queryFn: analyticsService.getYearComparison,
+    queryKey: ['year-comparison', selectedYear],
+    queryFn: () => analyticsService.getYearComparison(selectedYear),
     ...queryConfig
   });
 

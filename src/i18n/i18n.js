@@ -10,10 +10,19 @@ i18n
   .use(initReactI18next)
   .init({
     resources: {
-      en: { translation: enJSON },
-      es: { translation: esJSON }
+      en: { 
+        translation: enJSON,
+        tables: enJSON.tables // Explicitly load tables namespace
+      },
+      es: { 
+        translation: esJSON,
+        tables: esJSON.tables // Explicitly load tables namespace
+      }
     },
+    ns: ["translation", "tables"], // Declare namespaces
+    defaultNS: "translation", // Default namespace
     fallbackLng: 'es', // Idioma por defecto
+    debug: true, // Add this line for debugging
     interpolation: { escapeValue: false }
   });
 

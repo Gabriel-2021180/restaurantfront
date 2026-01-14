@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query'; 
 import { useOrders } from '../../hooks/useOrders';
@@ -9,6 +10,7 @@ import { ArrowLeft, Search, ShoppingBag, Trash2, Plus, DollarSign, Loader2, Chef
 import Swal from 'sweetalert2';
 
 const OrderManager = () => {
+  const { t } = useTranslation();
   const { orderId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient(); 
@@ -68,16 +70,16 @@ const OrderManager = () => {
   };
 
   const handleSendToKitchen = async () => {
-    Swal.fire({ title: 'Enviando...', didOpen: () => Swal.showLoading() });
+    Swal.fire({ title: t('orderManager.sending'), didOpen: () => Swal.showLoading() });
     try {
         const result = await sendToKitchen();
         if (result) {
-            Swal.fire({ title: '¡Enviado!', text: 'La comanda está en cocina.', icon: 'success', timer: 1000, showConfirmButton: false });
+            Swal.fire({ title: t('orderManager.sent'), text: t('orderManager.orderInKitchen'), icon: 'success', timer: 1000, showConfirmButton: false });
         } else {
             Swal.close();
         }
     } catch (error) {
-        Swal.fire('Error', 'No se pudo enviar', 'error');
+        Swal.fire(t('orderManager.error'), t('orderManager.couldNotSend'), 'error');
     }
   };
 
@@ -86,13 +88,13 @@ const OrderManager = () => {
     
     // UX RÁPIDA: Confirmación simple
     const result = await Swal.fire({
-        title: '¿Liberar Mesa?', 
-        text: "La cuenta pasará a Caja.", 
+        title: t('orderManager.releaseTable'), 
+        text: t('orderManager.accountGoesToCashier'), 
         icon: 'warning',
         showCancelButton: true, 
-        confirmButtonText: 'Sí, liberar', 
+        confirmButtonText: t('orderManager.yesRelease'), 
         confirmButtonColor: '#10b981',
-        cancelButtonText: 'Cancelar'
+        cancelButtonText: t('orderManager.cancel')
     });
 
     if (result.isConfirmed) {
@@ -105,7 +107,7 @@ const OrderManager = () => {
             await queryClient.invalidateQueries(['tables']);
             // Opcional: Toast no bloqueante
             const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-            Toast.fire({ icon: 'success', title: 'Mesa liberada para cobro' });
+            Toast.fire({ icon: 'success', title: t('orderManager.tableReleasedForPayment') });
         } catch (error) {
             console.error(error);
         }
@@ -115,39 +117,39 @@ const OrderManager = () => {
   if (isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12"/></div>;
 
   return (
-    <div className="flex h-screen bg-gray-100 dark:bg-dark-bg overflow-hidden">
+    <div className="flex flex-col lg:flex-row lg:h-screen bg-gray-100 dark:bg-dark-bg lg:overflow-hidden">
       
       {/* IZQUIERDA: MENÚ */}
       <div className="flex-1 flex flex-col border-r dark:border-gray-700">
-         <div className="h-16 bg-white dark:bg-dark-card border-b dark:border-gray-700 flex items-center px-4 gap-4 shadow-sm z-10">
+         <div className="h-16 bg-white dark:bg-dark-card border-b dark:border-gray-700 flex items-center px-4 gap-4 shadow-sm z-10 shrink-0">
             <Link to="/tables" className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full hover:bg-gray-200 transition">
                 <ArrowLeft size={20} className="text-gray-600 dark:text-white"/>
             </Link>
             <div className="flex-1">
-                <h2 className="text-lg font-bold text-gray-800 dark:text-white">Mesa {order?.table?.table_number}</h2>
+                <h2 className="text-lg font-bold text-gray-800 dark:text-white">{t('orderManager.table')} {order?.table?.table_number}</h2>
                 <span className="text-xs text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded-full">#{order?.order_number}</span>
             </div>
-            <div className="relative w-64">
+            <div className="relative hidden md:block w-64">
                 <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
-                <input type="text" placeholder="Buscar..." className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-800 border-none rounded-xl outline-none dark:text-white" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
+                <input type="text" placeholder={t('orderManager.searchPlaceholder')} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-800 border-none rounded-xl outline-none dark:text-white" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
             </div>
         </div>
 
-        <div className="h-14 bg-white dark:bg-dark-card border-b dark:border-gray-700 flex items-center px-4 gap-2 overflow-x-auto no-scrollbar">
-            <button onClick={() => setSelectedCategory('ALL')} className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap ${selectedCategory === 'ALL' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>Todo</button>
+        <div className="h-14 bg-white dark:bg-dark-card border-b dark:border-gray-700 flex items-center px-4 gap-2 overflow-x-auto no-scrollbar shrink-0">
+            <button onClick={() => setSelectedCategory('ALL')} className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap ${selectedCategory === 'ALL' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>{t('orderManager.all')}</button>
             {categories.map(cat => (
                 <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap ${selectedCategory === cat.id ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>{cat.name}</button>
             ))}
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-dark-bg">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredProducts.map(product => (
                     <div key={product.id} onClick={() => handleProductClick(product)} className="bg-white dark:bg-dark-card p-3 rounded-2xl shadow-sm hover:border-primary border border-transparent cursor-pointer active:scale-95 transition-all flex flex-col h-40 justify-between group">
-                        <span className="bg-gray-100 dark:bg-gray-700 text-xs font-bold px-2 py-1 rounded text-gray-500 dark:text-gray-300 w-max">{product.category?.name?.substring(0, 10) || 'Gral'}</span>
+                        <span className="bg-gray-100 dark:bg-gray-700 text-xs font-bold px-2 py-1 rounded text-gray-500 dark:text-gray-300 w-max">{product.category?.name?.substring(0, 10) || t('orderManager.general')}</span>
                         <p className="font-bold text-gray-800 dark:text-white line-clamp-2">{product.name}</p>
                         <div className="flex justify-between items-end">
-                             <span className="font-black text-lg text-primary">${parseFloat(product.price).toFixed(2)}</span>
+                             <span className="font-black text-lg text-primary">{t('common.currency')}{parseFloat(product.price).toFixed(2)}</span>
                              <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center shadow group-hover:bg-primary-dark"><Plus size={18} /></div>
                         </div>
                     </div>
@@ -156,16 +158,16 @@ const OrderManager = () => {
         </div>
       </div>
 
-      {/* DERECHA: RESUMEN */}
-      <div className="w-96 bg-white dark:bg-dark-card shadow-xl flex flex-col z-20">
-        <div className="h-16 border-b dark:border-gray-700 flex items-center px-6 bg-gray-50 dark:bg-gray-800">
+      {/* DERECHA: RESUMEN (se vuelve parte inferior en móvil) */}
+      <div className="w-full lg:w-96 lg:h-full bg-white dark:bg-dark-card shadow-2xl lg:shadow-xl flex flex-col z-20 shrink-0">
+        <div className="h-16 border-b dark:border-gray-700 flex items-center px-6 bg-gray-50 dark:bg-gray-800 shrink-0">
             <ShoppingBag className="text-primary mr-3" />
-            <h3 className="font-bold text-lg dark:text-white">Pedido Actual</h3>
+            <h3 className="font-bold text-lg dark:text-white">{t('orderManager.currentOrder')}</h3>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {order?.details?.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-gray-400 opacity-50"><p>Selecciona productos...</p></div>
+                <div className="flex flex-col items-center justify-center h-full text-gray-400 opacity-50"><p>{t('orderManager.selectProducts')}</p></div>
             ) : (
                 order?.details?.map((item) => {
                     const price = parseFloat(item.price_at_purchase) || 0;
@@ -180,7 +182,7 @@ const OrderManager = () => {
                             <div className="flex-1">
                                 <div className="flex justify-between">
                                     <p className="font-bold text-sm dark:text-white">{item.product?.name || 'Item'}</p>
-                                    <p className="font-mono text-sm font-bold text-gray-600 dark:text-gray-300">${subtotal}</p>
+                                    <p className="font-mono text-sm font-bold text-gray-600 dark:text-gray-300">{t('common.currency')}{subtotal}</p>
                                 </div>
                                 {item.notes && <p className="text-xs text-green-600 bg-green-50 px-1 rounded inline-block">{item.notes}</p>}
                                 {item.isTemp && <span className="text-[10px] text-yellow-600 font-bold ml-1 flex items-center gap-1"><Loader2 className="animate-spin w-3 h-3"/></span>}
@@ -192,10 +194,10 @@ const OrderManager = () => {
             )}
         </div>
 
-        <div className="p-6 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700">
+        <div className="p-6 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700 shrink-0">
             <div className="flex justify-between items-center mb-4">
-                <span className="text-gray-500 dark:text-gray-400">Total Acumulado</span>
-                <span className="text-3xl font-black text-gray-800 dark:text-white">${parseFloat(order?.total || 0).toFixed(2)}</span>
+                <span className="text-gray-500 dark:text-gray-400">{t('orderManager.totalAccumulated')}</span>
+                <span className="text-3xl font-black text-gray-800 dark:text-white">{t('common.currency')}{parseFloat(order?.total || 0).toFixed(2)}</span>
             </div>
             
             <div className="flex flex-col gap-3">
@@ -204,22 +206,22 @@ const OrderManager = () => {
                     disabled={isSyncing} 
                     className={`w-full py-3 text-white font-bold rounded-xl shadow transition-transform active:scale-95 flex items-center justify-center gap-2 ${isSyncing ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-800 hover:bg-black'}`}
                 >
-                    {isSyncing ? 'Sincronizando...' : <><ChefHat size={20} /> Marchar a Cocina</>}
+                    {isSyncing ? t('orderManager.syncing') : <><ChefHat size={20} /> {t('orderManager.sendToKitchen')}</>}
                 </button>
 
                 <button onClick={handleProcessPayment} className="w-full py-3 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow transition-transform active:scale-95 flex items-center justify-center gap-2">
-                    <DollarSign size={20} /> Cobrar Cuenta
+                    <DollarSign size={20} /> {t('orderManager.collectAccount')}
                 </button>
             </div>
         </div>
       </div>
 
-      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Agregar Producto">
+      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title={t('orderManager.addProduct')}>
         <form onSubmit={handleConfirmAdd} className="space-y-4">
-            <div className="text-center py-4 bg-gray-50 dark:bg-gray-800 rounded-xl"><span className="text-4xl font-black text-primary">${selectedProduct?.price}</span></div>
+            <div className="text-center py-4 bg-gray-50 dark:bg-gray-800 rounded-xl"><span className="text-4xl font-black text-primary">{t('common.currency')}{selectedProduct?.price}</span></div>
             <div className="grid grid-cols-3 gap-4">
                 <div>
-                    <label className="block text-sm font-bold mb-1 dark:text-white">Cant.</label>
+                    <label className="block text-sm font-bold mb-1 dark:text-white">{t('orderManager.quantity')}.</label>
                     <input 
                         type="number" 
                         min="1" 
@@ -229,9 +231,9 @@ const OrderManager = () => {
                         onChange={e => setQty(e.target.value)} 
                     />
                 </div>
-                <div className="col-span-2"><label className="block text-sm font-bold mb-1 dark:text-white">Notas</label><textarea rows="1" className="w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white" value={notes} onChange={e => setNotes(e.target.value)} /></div>
+                <div className="col-span-2"><label className="block text-sm font-bold mb-1 dark:text-white">{t('orderManager.notes')}</label><textarea rows="1" className="w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white" value={notes} onChange={e => setNotes(e.target.value)} /></div>
             </div>
-            <button type="submit" className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-lg mt-4">Confirmar</button>
+            <button type="submit" className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-lg mt-4">{t('orderManager.confirm')}</button>
         </form>
       </Modal>
 

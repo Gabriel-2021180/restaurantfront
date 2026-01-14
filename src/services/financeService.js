@@ -13,12 +13,18 @@ export const financeService = {
             throw error;
         }
     },
-    getAllInvoices: async (type = 'dine_in', from = null, to = null) => {
-        let query = `?type=${type}`;
+    getAllInvoices: async (type = 'dine_in', period = 'day', from = null, to = null, page = 1, limit = 10) => {
+        let query = `?type=${type}&page=${page}&limit=${limit}`;
+        
+        // Prioridad 1: Fechas manuales (Rango personalizado)
         if (from && to) {
             query += `&from=${from}&to=${to}`;
+        } 
+        // Prioridad 2: Periodo predefinido (day, week, month)
+        else if (period) {
+            query += `&period=${period}`;
         }
-        // Si no mandamos fechas, el backend asume "HOY" (carga rápida)
+
         const { data } = await api.get(`/finance/invoices${query}`);
         return data;
     },

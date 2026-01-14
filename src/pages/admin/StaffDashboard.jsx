@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStaffAnalytics } from '../../hooks/useStaffAnalytics';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -6,10 +7,11 @@ import {
 } from 'recharts';
 import { 
   Users, DollarSign, ShoppingBag, Award, Clock, 
-  Utensils, Folder, Ticket, Shield, User, Star, Truck, Receipt 
+  Utensils, Folder, Ticket, Shield, User, Star, Truck,Loader2, Receipt 
 } from 'lucide-react';
 
 const StaffDashboard = () => {
+  const { t } = useTranslation();
   const { auditLog, visualData, performance, isLoading, visualPeriod, setVisualPeriod } = useStaffAnalytics();
   const [activeTab, setActiveTab] = useState('waiters');
 
@@ -37,7 +39,7 @@ const StaffDashboard = () => {
       }
   };
 
-  if (isLoading) return <div className="p-10 text-center animate-pulse">Cargando datos...</div>;
+  if (isLoading) return <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12"/></div>;
 
   return (
     <div className="flex flex-col xl:flex-row gap-6 pb-10">
@@ -48,21 +50,21 @@ const StaffDashboard = () => {
         {/* Header */}
         <div className="flex justify-between items-center bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm">
             <h1 className="text-2xl font-black text-gray-800 dark:text-white flex items-center gap-2">
-                <Shield className="text-primary"/> Control de Personal
+                <Shield className="text-primary"/> {t('staffDashboard.staffControl')}
             </h1>
             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
                 {['day', 'week', 'month'].map(p => (
-                    <button key={p} onClick={() => setVisualPeriod(p)} className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition ${visualPeriod === p ? 'bg-white shadow text-primary' : 'text-gray-500'}`}>{p === 'day' ? 'Hoy' : p === 'week' ? 'Semana' : 'Mes'}</button>
+                    <button key={p} onClick={() => setVisualPeriod(p)} className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition ${visualPeriod === p ? 'bg-white shadow text-primary' : 'text-gray-500'}`}>{p === 'day' ? t('staffDashboard.today') : p === 'week' ? t('staffDashboard.week') : t('staffDashboard.month')}</button>
                 ))}
             </div>
         </div>
 
         {/* KPIs Generales */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <KpiCard title="Ventas Totales" value={`${safeVisualData.cards?.total_sales || 0} Bs`} icon={<DollarSign/>} color="text-orange-600" bg="bg-orange-50"/>
-            <KpiCard title="Pedidos Totales" value={safeVisualData.cards?.total_orders || 0} icon={<ShoppingBag/>} color="text-blue-600" bg="bg-blue-50"/>
+            <KpiCard title={t('staffDashboard.totalSales')} value={`${safeVisualData.cards?.total_sales || 0} Bs`} icon={<DollarSign/>} color="text-orange-600" bg="bg-orange-50"/>
+            <KpiCard title={t('staffDashboard.totalOrders')} value={safeVisualData.cards?.total_orders || 0} icon={<ShoppingBag/>} color="text-blue-600" bg="bg-blue-50"/>
             <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-5 rounded-2xl shadow-lg text-white">
-                <p className="text-xs font-bold uppercase opacity-80 mb-1">Empleado Estrella</p>
+                <p className="text-xs font-bold uppercase opacity-80 mb-1">{t('staffDashboard.starEmployee')}</p>
                 <div className="flex items-center gap-3">
                     <Award size={28} className="text-yellow-300"/>
                     <p className="text-lg font-black truncate">{safeVisualData.cards?.top_employee || '---'}</p>
@@ -73,7 +75,7 @@ const StaffDashboard = () => {
         {/* Gráficos */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white dark:bg-dark-card p-6 rounded-2xl shadow-sm h-80 flex flex-col">
-                <h3 className="font-bold text-gray-700 dark:text-white mb-4">🏆 Ranking Ventas (Meseros)</h3>
+                <h3 className="font-bold text-gray-700 dark:text-white mb-4">{t('staffDashboard.salesRankingWaiters')}</h3>
                 <div className="flex-1 w-full min-h-0">
                     {waiterChartData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
@@ -85,12 +87,12 @@ const StaffDashboard = () => {
                                 <Bar dataKey="sales" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20} />
                             </BarChart>
                         </ResponsiveContainer>
-                    ) : <p className="text-center text-gray-400 mt-10">Sin datos de ventas</p>}
+                    ) : <p className="text-center text-gray-400 mt-10">{t('staffDashboard.noSalesData')}</p>}
                 </div>
             </div>
 
             <div className="bg-white dark:bg-dark-card p-6 rounded-2xl shadow-sm h-80 flex flex-col">
-                <h3 className="font-bold text-gray-700 dark:text-white mb-4">💳 Pagos Recibidos</h3>
+                <h3 className="font-bold text-gray-700 dark:text-white mb-4">{t('staffDashboard.paymentsReceived')}</h3>
                 <div className="flex-1 w-full min-h-0">
                     {paymentChartData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
@@ -104,7 +106,7 @@ const StaffDashboard = () => {
                                 <Legend />
                             </PieChart>
                         </ResponsiveContainer>
-                    ) : <p className="text-center text-gray-400 mt-10">Sin datos de pagos</p>}
+                    ) : <p className="text-center text-gray-400 mt-10">{t('staffDashboard.noPaymentData')}</p>}
                 </div>
             </div>
         </div>
@@ -113,7 +115,7 @@ const StaffDashboard = () => {
         <div>
             <div className="flex items-center gap-4 mb-4">
                 <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                    <Users size={20} className="text-primary"/> Detalle del Equipo
+                    <Users size={20} className="text-primary"/> {t('staffDashboard.teamDetails')}
                 </h3>
                 <div className="flex bg-white dark:bg-dark-card p-1 rounded-lg border dark:border-gray-700">
                     {['waiters', 'cashiers', 'admins'].map(tab => (
@@ -122,7 +124,7 @@ const StaffDashboard = () => {
                             onClick={() => setActiveTab(tab)} 
                             className={`px-4 py-1 text-xs font-bold rounded-md capitalize transition ${activeTab === tab ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                         >
-                            {tab === 'waiters' ? 'Meseros' : tab === 'cashiers' ? 'Cajeros' : 'Admins'}
+                            {tab === 'waiters' ? t('staffDashboard.waiters') : tab === 'cashiers' ? t('staffDashboard.cashiers') : t('staffDashboard.admins')}
                         </button>
                     ))}
                 </div>
@@ -131,11 +133,11 @@ const StaffDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {(safePerformance[activeTab] || []).length === 0 ? (
                     <div className="col-span-full py-10 text-center bg-white dark:bg-dark-card rounded-2xl border border-dashed border-gray-300">
-                        <p className="text-gray-400">No se encontró personal en esta categoría.</p>
+                        <p className="text-gray-400">{t('staffDashboard.noStaffFound')}</p>
                     </div>
                 ) : (
                     (safePerformance[activeTab] || []).map((staff, i) => (
-                        <EmployeeCard key={i} staff={staff} type={activeTab} />
+                        <EmployeeCard key={i} staff={staff} type={activeTab} t={t} />
                     ))
                 )}
             </div>
@@ -147,11 +149,11 @@ const StaffDashboard = () => {
       <div className="w-full xl:w-80 shrink-0">
           <div className="bg-white dark:bg-dark-card p-5 rounded-2xl shadow-sm h-full max-h-[800px] overflow-y-auto custom-scrollbar sticky top-4">
               <h3 className="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-                  <Clock size={18} className="text-primary"/> Actividad
+                  <Clock size={18} className="text-primary"/> {t('staffDashboard.activity')}
               </h3>
               <div className="relative pl-4 border-l-2 border-gray-100 dark:border-gray-700 space-y-6">
                   {(!auditLog || auditLog.length === 0) ? (
-                      <p className="text-sm text-gray-400 italic">No hay actividad registrada.</p>
+                      <p className="text-sm text-gray-400 italic">{t('staffDashboard.noActivityRecorded')}</p>
                   ) : (
                       auditLog.map((log, i) => (
                           <div key={i} className="relative">
@@ -180,24 +182,24 @@ const StaffDashboard = () => {
 };
 
 // COMPONENTE TARJETA DE EMPLEADO (ACTUALIZADO CON NUEVAS MÉTRICAS)
-const EmployeeCard = ({ staff, type }) => {
+const EmployeeCard = ({ staff, type, t }) => {
     let stats = [];
 
     if (type === 'waiters') {
         stats = [
-            { label: 'Mesas Servidas', value: staff.tables_served || 0, icon: <Utensils size={14}/> },
-            { label: 'Venta Total', value: staff.sales_generated || '0 Bs', icon: <DollarSign size={14}/>, highlight: true }
+            { label: t('staffDashboard.tablesServed'), value: staff.tables_served || 0, icon: <Utensils size={14}/> },
+            { label: t('staffDashboard.totalSale'), value: staff.sales_generated || '0 Bs', icon: <DollarSign size={14}/>, highlight: true }
         ];
     } else if (type === 'cashiers') {
         stats = [
-            { label: 'Facturas', value: staff.invoices || 0, icon: <Receipt size={14}/> },
-            { label: 'Pedidos Llevar', value: staff.pickups_handled || 0, icon: <Truck size={14}/> },
-            { label: 'Recaudado', value: staff.collected || '0 Bs', icon: <DollarSign size={14}/>, highlight: true }
+            { label: t('staffDashboard.invoices'), value: staff.invoices || 0, icon: <Receipt size={14}/> },
+            { label: t('staffDashboard.pickupOrders'), value: staff.pickups_handled || 0, icon: <Truck size={14}/> },
+            { label: t('staffDashboard.collected'), value: staff.collected || '0 Bs', icon: <DollarSign size={14}/>, highlight: true }
         ];
     } else { // Admins
         stats = [
-            { label: 'Pedidos Llevar', value: staff.pickups_created || 0, icon: <Truck size={14}/> },
-            { label: 'Venta Pickup', value: staff.pickup_sales || '0 Bs', icon: <DollarSign size={14}/>, highlight: true }
+            { label: t('staffDashboard.pickupOrders'), value: staff.pickups_created || 0, icon: <Truck size={14}/> },
+            { label: t('staffDashboard.pickupSale'), value: staff.pickup_sales || '0 Bs', icon: <DollarSign size={14}/>, highlight: true }
         ];
     }
 
@@ -210,7 +212,7 @@ const EmployeeCard = ({ staff, type }) => {
                 <div>
                     <h4 className="font-bold text-gray-800 dark:text-white text-sm line-clamp-1">{staff.full_name}</h4>
                     <span className="text-[10px] font-bold uppercase bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-gray-500">
-                        {type === 'waiters' ? 'Mesero' : type === 'cashiers' ? 'Cajero' : 'Admin'}
+                        {type === 'waiters' ? t('staffDashboard.waiter') : type === 'cashiers' ? t('staffDashboard.cashier') : t('staffDashboard.admin')}
                     </span>
                 </div>
             </div>

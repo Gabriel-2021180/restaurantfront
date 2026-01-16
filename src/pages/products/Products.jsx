@@ -1,11 +1,11 @@
-import { useState, useMemo,useEffect, useContext  } from 'react';
+import { useState, useMemo, useEffect, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProducts } from '../../hooks/useProducts';
 import { useInventory } from '../../hooks/useInventory';
 import { useCategories } from '../../hooks/useCategories';
 import Modal from '../../components/ui/Modal';
 import SearchableSelect from '../../components/ui/SearchableSelect';
-import { SocketContext } from '../../context/SocketContext'; //
+import { SocketContext } from '../../context/SocketContext';
 import { 
     Plus, Layers, Search, Pencil, Trash2, RotateCcw, Image as ImageIcon, 
     Upload, Loader2, ChefHat, Box, Archive, Gift, Package, AlertCircle, CupSoda
@@ -13,12 +13,15 @@ import {
 import Swal from 'sweetalert2';
 import { useAuth } from '../../context/AuthContext';
 import productService from '../../services/productService';
+
 const Products = () => {
   const { t } = useTranslation();
   const { products, trash, isLoading, createProduct, updateProduct, deleteProduct, restoreProduct } = useProducts();
   const { categories } = useCategories();
   const { supplies } = useInventory(); 
   const { hasRole } = useAuth();
+  const { socket } = useContext(SocketContext); // Mover useContext aquí arriba
+  
   const isAdmin = hasRole(['super-admin', 'admin']);
   
   const [viewMode, setViewMode] = useState('active'); 
@@ -45,7 +48,7 @@ const Products = () => {
   const [fixedCost, setFixedCost] = useState(''); 
   const [ingredients, setIngredients] = useState([]); 
   const [bundleItems, setBundleItems] = useState([]);
-  const { socket } = useContext(SocketContext);
+
   const sourceData = viewMode === 'active' ? products : trash;
 
   const filteredList = sourceData.filter(product => {
@@ -77,7 +80,6 @@ const Products = () => {
     setIsModalOpen(true);
 
     try {
-        // Pedimos la data fresca al backend (incluye mermas y detalles)
         const fullProduct = await productService.getOne(productSummary.id);
         
         const catId = fullProduct.category?.id || fullProduct.category_id || '';
@@ -91,21 +93,18 @@ const Products = () => {
         setTrackStock(resaleStatus);
 
         if (comboStatus) {
-            // Cargar Bundle
             const items = fullProduct.bundleItems || fullProduct.bundle_items || [];
             setBundleItems(items.map(i => ({
                 child_product_id: i.childProduct?.id || i.child_product_id,
                 quantity: i.quantity
             })));
             
-            // Cargar Ingredientes
             const backendIngredients = fullProduct.recipeIngredients || fullProduct.ingredients || [];
             setIngredients(backendIngredients.map(i => ({
                 supply_id: i.supply?.id || i.supply_id, 
                 quantity: parseFloat(i.quantity) 
             })));
 
-            // --- CORRECCIÓN AQUÍ: CARGAR MERMA DEL COMBO ---
             setFixedCost(fullProduct.fixed_cost || ''); 
 
         } else if (resaleStatus) {
@@ -127,7 +126,6 @@ const Products = () => {
     }
   };
 
-  // LOGICA LISTAS
   const addIngredientRow = () => setIngredients([...ingredients, { supply_id: '', quantity: '' }]);
   const removeIngredientRow = (index) => { const newIng = [...ingredients]; newIng.splice(index, 1); setIngredients(newIng); };
   const updateIngredient = (index, field, value) => { const newIng = [...ingredients]; newIng[index][field] = value; setIngredients(newIng); };
@@ -144,18 +142,13 @@ const Products = () => {
 
   const totalCost = useMemo(() => {
       let total = 0;
-      // 1. Sumar Ingredientes
       total += ingredients.reduce((acc, ing) => acc + getIngredientCostInfo(ing).total, 0);
-      
-      // 2. Sumar Costo Fijo / Merma (AHORA SIEMPRE, INCLUSO EN COMBOS)
       total += parseFloat(fixedCost) || 0;
       
-      // 3. Sumar Bundle (Si es combo)
       if (isCombo) {
           bundleItems.forEach(item => {
               const prod = products.find(p => p.id === item.child_product_id);
               if (prod) {
-                  // Usamos costo de compra si es reventa, o un estimado del precio si no
                   const itemCost = prod.track_stock ? prod.purchase_price : (prod.price * 0.6);
                   total += (itemCost || 0) * (item.quantity || 0);
               }
@@ -193,10 +186,7 @@ const Products = () => {
 
             if (isCombo) {
                 payload.append('bundle_items', JSON.stringify(cleanBundle));
-                
-                // --- CORRECCIÓN AQUÍ: ENVIAR MERMA ---
                 payload.append('fixed_cost', fixedCost || 0); 
-
                 if (cleanIngredients.length > 0) payload.append('ingredients', JSON.stringify(cleanIngredients));
             } else {
                 payload.append('category_id', categoryId);
@@ -220,10 +210,7 @@ const Products = () => {
             if (isCombo) {
                 payload.bundle_items = cleanBundle;
                 payload.category_id = null;
-                
-                // --- CORRECCIÓN AQUÍ: ENVIAR MERMA ---
                 payload.fixed_cost = parseFloat(fixedCost) || 0;
-
                 if (cleanIngredients.length > 0) payload.ingredients = cleanIngredients;
             } else {
                 payload.category_id = categoryId;
@@ -273,12 +260,12 @@ const Products = () => {
   const handleDelete = (id) => { Swal.fire({ title: t('products.deleteConfirmation'), icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: t('products.yes') }).then((r) => { if (r.isConfirmed) deleteProduct(id); }); };
   const handleRestore = (id) => { Swal.fire({ title: t('products.restoreConfirmation'), icon: 'question', showCancelButton: true, confirmButtonText: t('products.yes') }).then((r) => { if (r.isConfirmed) restoreProduct(id); }); };
   
-  if (isLoading) return <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12"/></div>;
-
   const getModalTitle = () => {
       if (!editingProduct) return <><Plus size={18}/> {t('products.createNew')}</>;
       return isCombo ? <><Gift size={18}/> {t('products.editCombo')}</> : <><Pencil size={18}/> {t('products.editProduct')}</>;
   };
+
+  // 🔥 1. CORRECCIÓN IMPORTANTE: useEffect del Socket movido ANTES del if(isLoading)
   useEffect(() => {
     if (!socket) return;
     const handleStockUpdate = (notif) => {
@@ -289,6 +276,9 @@ const Products = () => {
     socket.on('notification', handleStockUpdate);
     return () => socket.off('notification', handleStockUpdate);
   }, [socket]);
+
+  // 🔥 2. isLoading ahora está AL FINAL de todos los hooks
+  if (isLoading) return <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12"/></div>;
 
   return (
     <div className="space-y-6">
@@ -382,12 +372,11 @@ const Products = () => {
         </div>
       </div>
 
-      {/* MODAL */}
+      {/* MODAL (Código del modal idéntico al anterior) */}
       {isAdmin && (
           <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
             <form onSubmit={handleSubmit} className="space-y-4">
                 
-                {/* SWITCH TIPO COMBO (BLOQUEADO AL EDITAR) */}
                 <div className={`flex items-center gap-3 p-3 rounded-xl border ${isCombo ? 'bg-purple-50 border-purple-100' : 'bg-gray-50 border-gray-200'} transition-all`}>
                     <input 
                         type="checkbox" 
@@ -440,7 +429,6 @@ const Products = () => {
                     <textarea rows="2" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white resize-none" value={description} onChange={e=>setDescription(e.target.value)}></textarea>
                 </div>
 
-                {/* TABS TIPO DE PRODUCTO (BLOQUEADO AL EDITAR) */}
                 {!isCombo && (
                     <>
                         <div className="bg-gray-50 dark:bg-gray-800 p-1 rounded-xl flex mb-2">
@@ -469,7 +457,6 @@ const Products = () => {
                     </>
                 )}
 
-                {/* LOGICA DE CONTENIDO IGUAL... */}
                 {isCombo ? (
                     <div className="space-y-4">
                         <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl border border-purple-100 dark:border-purple-800 space-y-3">

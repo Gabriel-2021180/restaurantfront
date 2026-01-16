@@ -627,5 +627,44 @@
     "lastNamePlaceholder": "Doe",
     "phonePlaceholder": "123-456-7890",
     "addressPlaceholder": "123 Main St"
-  }
+  },
+  "tables": {
+  "occupiedWarningTitle": "Hold on!",
+  "occupiedWarningText": "Table occupied.",
+  "accessRestrictedTitle": "Restricted Access",
+  "accessRestrictedText": "This table is being attended by another colleague.",
+  "understood": "Understood",
+  "openTableQuestion": "Open {{tableNumber}}?",
+  "yesOpen": "Yes, open",
+  "opening": "Opening...",
+  "error": "Error",
+  "couldNotOpenTable": "Could not open the table.",
+  "deleteConfirmation": "Delete?",
+  "yes": "Yes",
+  "tableManagement": "Table Management",
+  "deletedTables": "Deleted Tables",
+  "floor": "Floor",
+  "trash": "Trash",
+  "searchTablePlaceholder": "Search table...",
+  "newTable": "New Table",
+  "people": "people",
+  "occupiedOther": "OCCUPIED (Other)",
+  "serving": "SERVING",
+  "restore": "Restore",
+  "editTable": "Edit Table",
+  "identifier": "Identifier",
+  "capacity": "Capacity",
+  "cancel": "Cancel",
+  "save": "Save",
+  "filterOccupied": "Occupied", 
+  "filterFree": "Available",
+  "available": "AVAILABLE"
+},
+
+
+  "monthsList": [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ],
+  "noDataChart": "No data to display for this period"
 }

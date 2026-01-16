@@ -1,32 +1,46 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import io from 'socket.io-client';
+import { useAuth } from './AuthContext';
 
-// 👇 AQUÍ AGREGAMOS "export" PARA QUE OTROS ARCHIVOS PUEDAN USARLO
+// Exportamos el Contexto
 export const SocketContext = createContext();
 
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
+  const { user, isAuthenticated } = useAuth(); // Obtenemos el usuario y su rol
 
   useEffect(() => {
-    // Extraemos la URL base de la variable de entorno, con un fallback
-    const baseURL = import.meta.env.VITE_API_URL 
-      ? new URL(import.meta.env.VITE_API_URL).origin 
-      : 'http://localhost:3000';
+    if (isAuthenticated && user) {
+      // 1. Definir URL base (igual que tenías antes)
+      const baseURL = import.meta.env.VITE_API_URL 
+        ? new URL(import.meta.env.VITE_API_URL).origin 
+        : 'http://localhost:3000';
 
-    const newSocket = io(baseURL, {
-      transports: ['websocket'],
-      autoConnect: true,
-    });
+      // 2. Conectar enviando ID y ROL (Lógica nueva)
+      const newSocket = io(baseURL, {
+        query: {
+            userId: user.id,
+            role: user.role?.name || 'invitado'
+        },
+        transports: ['websocket'],
+        autoConnect: true,
+      });
 
-    // Debug: Avisar si conectó
-    newSocket.on('connect', () => {
-      console.log("🟢 Socket Conectado:", newSocket.id);
-    });
+      newSocket.on('connect', () => {
+        console.log(`🟢 Socket Conectado como ${user.role?.name || 'Usuario'}`);
+      });
 
-    setSocket(newSocket);
+      setSocket(newSocket);
 
-    return () => newSocket.disconnect();
-  }, []);
+      return () => newSocket.close();
+    } else {
+        // Si se desloguea, desconectamos
+        if(socket) {
+            socket.close();
+            setSocket(null);
+        }
+    }
+  }, [isAuthenticated, user]);
 
   return (
     <SocketContext.Provider value={{ socket }}>

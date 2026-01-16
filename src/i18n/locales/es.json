@@ -27,6 +27,12 @@
     "logout": "Cerrar Sesión",
     "my_profile": "Mi Perfil"
   },
+  "takeaway": "Para Llevar", 
+  "monthsList": [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ],
+  "noDataChart": "Sin datos en este periodo",
   "brand_name": "RestoAdmin",
   "loading_business_data": "Cargando datos del negocio...",
   "dashboard_summary_title": "Resumen del Negocio",
@@ -655,6 +661,10 @@
     "identifier": "Identificador",
     "capacity": "Capacidad",
     "cancel": "Cancelar",
-    "save": "Guardar"
+    "save": "Guardar",
+    "filterOccupied": "Ocupadas", 
+    "filterFree": "Libres",
+    "available": "DISPONIBLE"
   }
+  
 }

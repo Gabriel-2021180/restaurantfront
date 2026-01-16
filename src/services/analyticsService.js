@@ -2,19 +2,28 @@ import api from '../api/axios';
 
 export default {
   // 1. KPIs (Periodo: day | month)
-  getKPIs: async (period = 'month') => {
-    const { data } = await api.get(`/analytics/dashboard-kpi?period=${period}`);
+  getKPIs: async (period = 'month', month, year) => {
+    let query = `period=${period}`;
+    if (month) query += `&month=${month}`;
+    if (year) query += `&year=${year}`;
+    
+    const { data } = await api.get(`/analytics/dashboard-kpi?${query}`);
     return data;
   },
-  getChannelStats: async (period = 'day') => {
-    const { data } = await api.get(`/analytics/channels?period=${period}`);
+
+  // 🔥 CORREGIDO: Ahora acepta y envía month y year
+  getChannelStats: async (period = 'day', month, year) => {
+    let query = `period=${period}`;
+    if (month) query += `&month=${month}`;
+    if (year) query += `&year=${year}`;
+    
+    const { data } = await api.get(`/analytics/channels?${query}`);
     return data; 
-    // Retorna: { dine_in: {...}, pickup: {...}, winner: 'Mesas' }
   },
 
   getDayChannels: async () => {
     const { data } = await api.get('/analytics/day-channels');
-    return data; // { dine_in: {...}, pickup: {...}, winner: '...' }
+    return data; 
   },
 
   // 2. Rentabilidad
@@ -35,9 +44,9 @@ export default {
     return data;
   },
 
-  // 5. Top Productos (Volumen)
-  getTopProducts: async (month, year) => {
-    const { data } = await api.get(`/analytics/top-products?month=${month}&year=${year}`);
+  // 5. TOP Productos (Ya estaba bien, lo dejamos igual)
+  getTopProducts: async (month, year, pagination = {limit: 5, page: 1}) => {
+    const { data } = await api.get(`/analytics/top-products?month=${month}&year=${year}&limit=${pagination.limit}`);
     return data;
   },
 
@@ -47,13 +56,13 @@ export default {
     return data;
   },
 
-  // 7. Personal
+  // 7. Desempeño Personal
   getStaffPerformance: async (month, year) => {
     const { data } = await api.get(`/analytics/staff-performance?month=${month}&year=${year}`);
     return data;
   },
   
-  // 8. Resumen Anual (Línea)
+  // 8. Resumen Anual
   getYearlyOverview: async (year) => {
     const { data } = await api.get(`/analytics/yearly-overview?year=${year}`);
     return data;
@@ -64,35 +73,17 @@ export default {
     return data; 
   },
 
-  // 2. DASHBOARD VISUAL (Cards + Charts)
+  // 2. DASHBOARD VISUAL
   getDashboardVisual: async (period = 'month') => {
     const { data } = await api.get(`/analytics/dashboard-visual?period=${period}`);
     return data;
   },
 
-  // 3. RENDIMIENTO GLOBAL (Tablas Personal)
-  getPerformanceGlobal: async (from, to) => {
-    // Si no hay fechas, el backend usará las por defecto
-    let query = '';
-    if (from && to) query = `?from=${from}&to=${to}`;
-    
-    const { data } = await api.get(`/analytics/performance-global${query}`);
-    return data;
-  },
-
-  getAuditLog: async () => {
-    const { data } = await api.get('/analytics/audit-log');
-    return data; 
-  },
-  getDashboardVisual: async (period = 'month') => {
-    const { data } = await api.get(`/analytics/dashboard-visual?period=${period}`);
-    return data;
-  },
+  // 3. RENDIMIENTO GLOBAL
   getPerformanceGlobal: async (from, to) => {
     let query = '';
     if (from && to) query = `?from=${from}&to=${to}`;
     const { data } = await api.get(`/analytics/performance-global${query}`);
     return data;
   }
-  
 };

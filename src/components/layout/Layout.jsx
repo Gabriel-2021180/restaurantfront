@@ -59,11 +59,6 @@ const Layout = ({ children }) => {
             </NavLink>
           )}
 
-          <NavLink to="/tables" className={navLinkClasses}>
-            <Square size={20} />
-            <span>{t('nav.tables')}</span>
-          </NavLink>
-
           {/* NUEVO: PARA LLEVAR */}
           {hasRole(['super-admin', 'admin', 'cashier']) && (
             <NavLink to="/pickup" className={navLinkClasses}>
@@ -71,6 +66,11 @@ const Layout = ({ children }) => {
                 <span>{t('nav.takeaway')}</span>
             </NavLink>
           )}
+          
+          <NavLink to="/tables" className={navLinkClasses}>
+            <Square size={20} />
+            <span>{t('nav.tables')}</span>
+          </NavLink>
           
           {hasRole(['super-admin', 'admin']) && (
               <NavLink to="/tables" className={navLinkClasses}>

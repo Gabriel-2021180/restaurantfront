@@ -5,36 +5,51 @@ import analyticsService from '../services/analyticsService';
 export const useAnalytics = () => {
   const now = new Date();
   
-  // FILTROS GLOBALES
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
-  // FILTROS ESPECÍFICOS
-  const [kpiPeriod, setKpiPeriod] = useState('month'); // Para las tarjetas de arriba
-  const [channelPeriod, setChannelPeriod] = useState('day'); // NUEVO: Para el VS (Mesas vs Pickup)
+  const [kpiPeriod, setKpiPeriod] = useState('month'); 
+  const [channelPeriod, setChannelPeriod] = useState('day'); 
 
-  // CONFIGURACIÓN (Cache de 5 min)
   const queryConfig = {
     staleTime: 1000 * 60 * 5, 
     retry: false,
     refetchOnWindowFocus: false 
   };
 
-  // 1. KPIS
+  // 1. KPI Query (Sin cambios)
   const kpiQuery = useQuery({
-    queryKey: ['kpis', kpiPeriod],
-    queryFn: () => analyticsService.getKPIs(kpiPeriod),
+    // 🔥 CLAVE: Agregamos selectedMonth y selectedYear a la "key".
+    // Esto hace que si cambian, la query se dispara sola.
+    queryKey: ['kpis', kpiPeriod, selectedMonth, selectedYear],
+    
+    queryFn: () => {
+        const sendSpecificDate = kpiPeriod === 'month' || kpiPeriod === 'year';
+        return analyticsService.getKPIs(
+            kpiPeriod, 
+            sendSpecificDate ? selectedMonth : undefined, 
+            sendSpecificDate ? selectedYear : undefined
+        );
+    },
     ...queryConfig
   });
 
-  // 2. NUEVO: CANALES DE VENTA
+  // 🔥 2. CORRECCIÓN IMPORTANTE AQUÍ 🔥
+  // Si el usuario elige "Hoy" o "Semana", NO enviamos mes/año para que el backend use la fecha real actual.
   const channelsQuery = useQuery({
-    queryKey: ['channels', channelPeriod],
-    queryFn: () => analyticsService.getChannelStats(channelPeriod),
+    queryKey: ['channels', channelPeriod, selectedMonth, selectedYear],
+    queryFn: () => {
+        // Solo enviamos mes y año si el periodo es 'month' o 'year'
+        const isHistory = channelPeriod === 'month' || channelPeriod === 'year';
+        const m = isHistory ? selectedMonth : undefined;
+        const y = isHistory ? selectedYear : undefined;
+        
+        return analyticsService.getChannelStats(channelPeriod, m, y);
+    },
     ...queryConfig
   });
 
-  // 3. COMPARATIVA AÑOS
+  // ... (El resto del archivo yearComparison, topProfitable, etc. déjalo igual)
   const comparisonQuery = useQuery({
     queryKey: ['year-comparison', selectedYear],
     queryFn: () => analyticsService.getYearComparison(selectedYear),
@@ -66,21 +81,19 @@ export const useAnalytics = () => {
   });
 
   return {
-    // Estados
     kpiPeriod, setKpiPeriod,
-    channelPeriod, setChannelPeriod, // <--- Exportamos esto para el Dashboard
+    channelPeriod, setChannelPeriod,
     selectedMonth, setSelectedMonth,
     selectedYear, setSelectedYear,
 
-    // Datos
     kpis: kpiQuery.data || {},
-    channelsData: channelsQuery.data || null, // <--- Data nueva
+    channelsData: channelsQuery.data || null, 
     yearComparison: comparisonQuery.data || { data: [] },
     topProfitable: profitableQuery.data || [],
     weeklyPattern: weeklyQuery.data || [],
     topProducts: topProductsQuery.data || [],
     peakHours: peakHoursQuery.data || [],
-
-    isLoading: kpiQuery.isLoading || channelsQuery.isLoading
+    
+    isLoading: kpiQuery.isLoading
   };
 };

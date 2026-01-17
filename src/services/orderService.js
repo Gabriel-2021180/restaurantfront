@@ -73,5 +73,17 @@ export default {
     } catch (e) {
         return [];
     }
+  },
+
+  sendToCashier: async (orderId) => {
+      const { data } = await api.patch(`/orders/${orderId}/close`); // Reutilizamos el endpoint de cerrar mesa
+      return data;
+  },
+  
+  // J. MARCAR COMO LISTO (Para avisar al cliente)
+  markAsReady: async (orderId) => {
+      // Si tienes un endpoint específico para esto, úsalo. Si no, podemos asumir que al cerrar va a caja.
+      // Por ahora usaremos el cierre directo.
+      return true; 
   }
 };

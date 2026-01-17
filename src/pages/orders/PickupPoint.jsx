@@ -1,359 +1,394 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProducts } from '../../hooks/useProducts';
 import { useCategories } from '../../hooks/useCategories';
-import { useFinance } from '../../hooks/useFinance';
-import orderService from '../../services/orderService';
-import { financeService } from '../../services/financeService';
-
-import CheckoutModal from '../../components/finance/CheckoutModal';
-import InvoiceTicket from '../../components/finance/InvoiceTicket';
+import api from '../../api/axios';
+import orderService from '../../services/orderService'; // <--- IMPORTAR SERVICIO
 import { 
-  ShoppingBag, Plus, Trash2, User, Phone, Loader2, CheckCircle, 
-  Image as ImageIcon, ArrowLeft, Clock, Utensils, DollarSign, RefreshCw, Printer 
+    Search, ShoppingBag, Trash2, User, Phone, 
+    ChevronRight, Plus, Minus, Loader2, DollarSign, Package, Clock, CheckCircle
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import Modal from '../../components/ui/Modal';
 import Swal from 'sweetalert2';
+import toast, { Toaster } from 'react-hot-toast';
 
 const PickupPoint = () => {
   const { t } = useTranslation();
-  const { products } = useProducts();
+  const { products, isLoading: loadingProducts } = useProducts();
   const { categories } = useCategories();
-  const { generateInvoice } = useFinance();
 
-  // Estados
-  const [activeTab, setActiveTab] = useState('new'); 
-  const [selectedCategory, setSelectedCategory] = useState('ALL');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [cart, setCart] = useState([]);
-  const [client, setClient] = useState({ name: '', phone: '' });
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // --- ESTADOS ---
+  const [activeTab, setActiveTab] = useState('new'); // 'new' | 'active'
+  const [activeOrders, setActiveOrders] = useState([]); // Lista de pedidos en curso
+  const [loadingOrders, setLoadingOrders] = useState(false);
 
-  const [activeOrders, setActiveOrders] = useState([]);
-  const [loadingActive, setLoadingActive] = useState(false);
-
-  // Estados Cobro
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [selectedOrderToPay, setSelectedOrderToPay] = useState(null);
-  const [generatedInvoice, setGeneratedInvoice] = useState(null);
-
-  // --- CARGAR DATOS ---
-  const loadActiveOrders = async () => {
-    setLoadingActive(true);
-    try {
-        const data = await orderService.getActivePickups(); // <--- USA LA RUTA NUEVA
-        setActiveOrders(data);
-    } catch (error) {
-        console.error(t('pickupPoint.errorLoadingPickups'), error);
-    } finally {
-        setLoadingActive(false);
-    }
-  };
-
-  // Cargar y mantener actualizados los pedidos activos en segundo plano
-  useEffect(() => {
-    // Carga inicial
-    loadActiveOrders();
-
-    // Polling cada 10 segundos
-    const interval = setInterval(loadActiveOrders, 10000); 
-
-    // Limpiar el intervalo cuando el componente se desmonte
-    return () => clearInterval(interval);
-  }, []); // El array vacío asegura que esto se ejecute solo una vez (al montar)
-
-  // Filtros
-  const filteredProducts = products.filter(p => {
-    const matchCat = selectedCategory === 'ALL' || 
-                     String(p.category_id) === String(selectedCategory) ||
-                     (p.category && String(p.category.id) === String(selectedCategory));
-    const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchCat && matchSearch;
+  // --- ESTADO NUEVO PEDIDO (Persistente) ---
+  const [clientName, setClientName] = useState(() => localStorage.getItem('pickup_clientName') || '');
+  const [clientPhone, setClientPhone] = useState(() => localStorage.getItem('pickup_clientPhone') || '');
+  const [cart, setCart] = useState(() => {
+      const saved = localStorage.getItem('pickup_cart');
+      return saved ? JSON.parse(saved) : [];
   });
 
-  // Funciones Carrito
-  const addToCart = (product) => {
-    const existing = cart.find(item => item.product_id === product.id);
-    if (existing) {
-        setCart(cart.map(item => item.product_id === product.id ? { ...item, quantity: item.quantity + 1 } : item));
-    } else {
-        setCart([...cart, { product_id: product.id, name: product.name, price: parseFloat(product.price), quantity: 1, notes: '', image_url: product.image_url }]);
-    }
-  };
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // MODAL
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [qty, setQty] = useState(1);
+  const [notes, setNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const updateQty = (index, delta) => {
-    const newCart = [...cart];
-    newCart[index].quantity += delta;
-    if (newCart[index].quantity <= 0) newCart.splice(index, 1);
-    setCart(newCart);
-  };
+  // --- EFECTOS ---
+  useEffect(() => { localStorage.setItem('pickup_clientName', clientName); }, [clientName]);
+  useEffect(() => { localStorage.setItem('pickup_clientPhone', clientPhone); }, [clientPhone]);
+  useEffect(() => { localStorage.setItem('pickup_cart', JSON.stringify(cart)); }, [cart]);
 
-  const updateNotes = (index, text) => {
-    const newCart = [...cart];
-    newCart[index].notes = text;
-    setCart(newCart);
-  };
+  // Cargar pedidos activos al cambiar de pestaña
+  useEffect(() => {
+      if (activeTab === 'active') {
+          fetchActiveOrders();
+      }
+  }, [activeTab]);
 
-  const totalCart = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-
-  // Enviar Pedido
-  const handleSubmitOrder = async () => {
-    if (cart.length === 0) return Swal.fire(t('pickupPoint.emptyCart'), t('pickupPoint.addProducts'), 'warning');
-    if (!client.name.trim()) return Swal.fire(t('pickupPoint.missingData'), t('pickupPoint.clientNameRequired'), 'warning');
-
-    setIsSubmitting(true);
-    try {
-        const newOrder = await orderService.createPickupOrder({
-            client_name: client.name,
-            client_phone: client.phone,
-            items: cart.map(i => ({ product_id: i.product_id, quantity: i.quantity, notes: i.notes }))
-        });
-
-        if (newOrder && newOrder.id) await orderService.sendToKitchen(newOrder.id);
-
-        Swal.fire({
-            toast: true, position: 'top-end', title: t('pickupPoint.orderInKitchen'),
-            text: t('pickupPoint.orderSent'), icon: 'success', timer: 2000, showConfirmButton: false
-        });
-
-        setCart([]);
-        setClient({ name: '', phone: '' });
-        setActiveTab('active'); // <--- TE LLEVA A VER TU PEDIDO
-
-    } catch (error) {
-        console.error(error);
-        Swal.fire(t('pickupPoint.error'), t('pickupPoint.couldNotCreateOrder'), 'error');
-    } finally {
-        setIsSubmitting(false);
-    }
-  };
-
-  // Cobro
-  const handleInitiateCheckout = (order) => {
-      setSelectedOrderToPay(order);
-      setIsCheckoutOpen(true);
-  };
-
-  const handleConfirmCheckout = async (formData) => {
+  const fetchActiveOrders = async () => {
+      setLoadingOrders(true);
       try {
-          Swal.fire({ title: t('pickupPoint.invoicing'), didOpen: () => Swal.showLoading() });
-          
-          let invoice = await generateInvoice({ 
-              order_id: selectedOrderToPay.id, 
-              client_nit: formData.nit, 
-              client_name: formData.name, 
-              payment_method: formData.payment_method 
-          });
-          
-          const details = invoice.details || invoice.order?.details || [];
-          if (details.length === 0) {
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              invoice = await financeService.getInvoiceById(invoice.id);
-          }
-
-          Swal.close(); 
-          setIsCheckoutOpen(false);
-          setGeneratedInvoice(invoice); 
-          loadActiveOrders(); 
-      } catch (error) { 
-          Swal.close();
+          const data = await orderService.getActivePickups();
+          setActiveOrders(data);
+      } catch (error) {
           console.error(error);
-          Swal.fire(t('pickupPoint.error'), t('pickupPoint.couldNotInvoice'), 'error');
+      } finally {
+          setLoadingOrders(false);
       }
   };
 
-  const handleFinishInvoice = () => {
-      setGeneratedInvoice(null);
-      setSelectedOrderToPay(null);
+  // Sincronizar stock modal
+  useEffect(() => {
+      if (selectedProduct && isModalOpen) {
+          const fresh = products.find(p => p.id === selectedProduct.id);
+          if (fresh && fresh.stock !== selectedProduct.stock) {
+              setSelectedProduct(fresh);
+          }
+      }
+  }, [products, selectedProduct, isModalOpen]);
+
+  const filteredProducts = useMemo(() => products.filter(p => {
+    if (!p.is_active) return false;
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'ALL' || p.category_id === selectedCategory || p.category?.id === selectedCategory;
+    return matchesSearch && matchesCategory;
+  }), [products, searchTerm, selectedCategory]);
+
+  const totalAmount = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.quantity), 0), [cart]);
+
+  // --- ACCIONES ---
+
+  const handleProductClick = (product) => {
+    setSelectedProduct(product);
+    setQty(1);
+    setNotes('');
+    setIsModalOpen(true);
   };
 
-  if (generatedInvoice) { 
-    return (
-        <div className="fixed inset-0 z-50 bg-gray-100 flex flex-col items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full flex flex-col h-[90vh]">
-                <div className="text-center mb-4 shrink-0">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                        <CheckCircle className="text-green-600 w-10 h-10"/>
-                    </div>
-                    <h2 className="text-2xl font-black text-gray-800">{t('pickupPoint.checkoutSuccessful')}</h2>
-                    <p className="text-gray-500">{t('pickupPoint.invoiceNumber', { number: generatedInvoice.invoice_number })}</p>
-                </div>
-                <div className="flex-1 bg-gray-50 rounded-xl border border-gray-200 overflow-y-auto p-4 mb-4 flex justify-center shadow-inner">
-                    <InvoiceTicket invoice={generatedInvoice} />
-                </div>
-                <div className="grid grid-cols-2 gap-4 shrink-0 print:hidden">
-                    <button onClick={() => setTimeout(() => window.print(), 100)} className="py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl flex justify-center items-center gap-2 shadow-lg">
-                        <Printer size={24}/> {t('pickupPoint.print')}
-                    </button>
-                    <button onClick={handleFinishInvoice} className="py-4 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-xl">
-                        {t('pickupPoint.backToOrders')}
-                    </button>
-                </div>
-            </div>
-        </div>
-    ); 
-  }
+  const addToCart = (e) => {
+    e.preventDefault();
+    if (!selectedProduct) return;
+
+    if (selectedProduct.track_stock) {
+        const inCart = cart.find(x => x.id === selectedProduct.id)?.quantity || 0;
+        if ((qty + inCart) > selectedProduct.stock) {
+            toast.error(`Stock insuficiente. Quedan ${selectedProduct.stock}.`);
+            return;
+        }
+    }
+
+    const newItem = {
+        id: selectedProduct.id,
+        name: selectedProduct.name,
+        price: parseFloat(selectedProduct.price),
+        quantity: qty,
+        notes: notes,
+    };
+
+    setCart(prev => {
+        const existingIndex = prev.findIndex(item => item.id === newItem.id && item.notes === newItem.notes);
+        if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex].quantity += newItem.quantity;
+            return updated;
+        }
+        return [...prev, newItem];
+    });
+
+    setIsModalOpen(false);
+    toast.success('Agregado');
+  };
+
+  const handleCreateOrder = async () => {
+      if (!clientName.trim()) {
+          toast.error('Falta nombre del cliente');
+          return;
+      }
+      if (cart.length === 0) {
+          toast.error('Carrito vacío');
+          return;
+      }
+
+      setIsSubmitting(true);
+      try {
+          const payload = {
+              client_name: clientName,
+              client_phone: clientPhone,
+              items: cart.map(item => ({
+                  product_id: item.id,
+                  quantity: item.quantity,
+                  notes: item.notes
+              }))
+          };
+
+          await api.post('/orders/pickup', payload);
+          
+          setCart([]);
+          setClientName('');
+          setClientPhone('');
+          localStorage.removeItem('pickup_cart');
+          localStorage.removeItem('pickup_clientName');
+          localStorage.removeItem('pickup_clientPhone');
+
+          Swal.fire({
+              icon: 'success',
+              title: '¡Pedido Enviado!',
+              text: 'Se ha enviado a cocina.',
+              timer: 1500,
+              showConfirmButton: false
+          });
+          
+          setActiveTab('active'); // Cambiamos a la pestaña de activos para ver el pedido
+
+      } catch (error) {
+          const msg = error.response?.data?.message || 'Error al crear pedido';
+          Swal.fire('Error', msg, 'error');
+      } finally {
+          setIsSubmitting(false);
+      }
+  };
+
+  // 🔥 NUEVO: ENVIAR A CAJA (COBRAR)
+  const handleSendToCashier = async (orderId) => {
+      try {
+          await Swal.fire({
+              title: '¿Enviar a Caja?',
+              text: "El pedido pasará a 'Pendiente de Pago' para que el cajero lo cobre.",
+              icon: 'question',
+              showCancelButton: true,
+              confirmButtonText: 'Sí, enviar',
+              cancelButtonText: 'Cancelar'
+          }).then(async (result) => {
+              if (result.isConfirmed) {
+                  await orderService.sendToCashier(orderId);
+                  toast.success('Enviado a Caja');
+                  fetchActiveOrders(); // Refrescar lista
+              }
+          });
+      } catch (error) {
+          toast.error('Error al procesar');
+      }
+  };
+
+  if (loadingProducts) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12"/></div>;
 
   return (
-    <div className="flex h-screen bg-gray-100 dark:bg-dark-bg overflow-hidden flex-col">
-      
-      {/* HEADER */}
-      <div className="h-16 bg-white dark:bg-dark-card border-b dark:border-gray-700 flex items-center px-4 justify-between shrink-0 shadow-sm z-10">
-          <div className="flex items-center gap-4">
-              <Link to="/cashier" className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200"><ArrowLeft size={20}/></Link>
-              <h1 className="text-xl font-bold dark:text-white hidden md:block">{t('pickupPoint.pickupPoint')}</h1>
-              <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl ml-4">
-                  <button onClick={() => setActiveTab('new')} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition ${activeTab === 'new' ? 'bg-white shadow text-primary' : 'text-gray-500'}`}>
-                      <Plus size={16}/> {t('pickupPoint.newOrder')}
-                  </button>
-                  <button onClick={() => setActiveTab('active')} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition ${activeTab === 'active' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>
-                      <Clock size={16}/> {t('pickupPoint.activeOrders')}
-                      {activeOrders.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full">{activeOrders.length}</span>}
-                  </button>
-              </div>
+    <div className="flex flex-col h-screen bg-gray-100 dark:bg-dark-bg animate-fade-in overflow-hidden">
+      <Toaster position="top-center" />
+
+      {/* HEADER PRINCIPAL */}
+      <div className="h-16 bg-white dark:bg-dark-card border-b dark:border-gray-700 flex items-center justify-between px-6 shrink-0 z-20 shadow-sm">
+          <h2 className="text-2xl font-black text-gray-800 dark:text-white flex items-center gap-2">
+              <Package className="text-primary"/> {t('orderManager.takeAway')}
+          </h2>
+          
+          {/* PESTAÑAS */}
+          <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+              <button 
+                  onClick={() => setActiveTab('new')}
+                  className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'new' ? 'bg-white dark:bg-dark-card shadow text-primary' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
+              >
+                  <Plus size={16} className="inline mr-2 mb-0.5"/> {t('orderManager.newOrderButton')}
+              </button>
+              <button 
+                  onClick={() => setActiveTab('active')}
+                  className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'active' ? 'bg-white dark:bg-dark-card shadow text-primary' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
+              >
+                  <Clock size={16} className="inline mr-2 mb-0.5"/> {t('orderManager.activeOrdersButton')}
+              </button>
           </div>
-          {activeTab === 'new' && (
-             <div className="w-1/3 hidden md:block">
-                <input type="text" placeholder={t('pickupPoint.searchProductPlaceholder')} className="w-full p-2 bg-gray-100 dark:bg-gray-800 rounded-lg outline-none dark:text-white border-transparent focus:bg-white focus:border-primary border-2 transition-all" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
-             </div>
-          )}
       </div>
 
-      {activeTab === 'new' && (
-        <div className="flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden">
-            <div className="flex-1 flex flex-col">
-                <div className="p-4 flex gap-2 overflow-x-auto bg-white dark:bg-dark-card border-b dark:border-gray-700 shrink-0">
-                    <button onClick={() => setSelectedCategory('ALL')} className={`px-4 py-2 rounded-full text-sm font-bold transition ${selectedCategory === 'ALL' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>{t('pickupPoint.all')}</button>
-                    {categories.map(cat => (
-                        <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-4 py-2 rounded-full text-sm font-bold transition ${selectedCategory === cat.id ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>{cat.name}</button>
-                    ))}
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-dark-bg">
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                        {filteredProducts.map(product => (
-                            <div key={product.id} onClick={() => addToCart(product)} className="bg-white dark:bg-dark-card p-3 rounded-2xl shadow-sm hover:shadow-md cursor-pointer border border-transparent hover:border-primary transition-all active:scale-95 group h-48 flex flex-col justify-between">
-                                <div className="h-24 bg-gray-100 dark:bg-gray-700 rounded-xl overflow-hidden flex items-center justify-center mb-2">
-                                    {product.image_url ? <img src={product.image_url} className="w-full h-full object-cover"/> : <ImageIcon className="text-gray-300"/>}
-                                </div>
-                                <div>
-                                    <p className="font-bold text-sm dark:text-white line-clamp-1">{product.name}</p>
-                                    <div className="flex justify-between items-center mt-1">
-                                        <span className="font-black text-primary">{t('common.currency')}{product.price}</span>
-                                        <div className="w-6 h-6 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors"><Plus size={14}/></div>
-                                    </div>
-                                </div>
-                            </div>
+      {/* CONTENIDO PRINCIPAL */}
+      {activeTab === 'new' ? (
+          <div className="flex flex-1 overflow-hidden">
+              {/* IZQUIERDA: CATÁLOGO */}
+              <div className="flex-1 flex flex-col border-r dark:border-gray-700">
+                  {/* Buscador y Categorías */}
+                  <div className="bg-white dark:bg-dark-card border-b dark:border-gray-700 p-4 space-y-4 shadow-sm z-10">
+                      <div className="relative">
+                          <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
+                          <input 
+                            type="text" 
+                            placeholder={t('orderManager.searchPlaceholder')}
+                            className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-800 border-none rounded-xl outline-none dark:text-white"
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                          />
+                      </div>
+                      <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                        <button onClick={() => setSelectedCategory('ALL')} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${selectedCategory === 'ALL' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>{t('orderManager.all')}</button>
+                        {categories.map(cat => (
+                            <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${selectedCategory === cat.id ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>{cat.name}</button>
                         ))}
-                    </div>
-                </div>
-            </div>
-            <div className="w-full lg:w-96 bg-white dark:bg-dark-card border-l dark:border-gray-700 flex flex-col shadow-2xl z-20 shrink-0">
-                <div className="p-5 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                    <h2 className="font-bold text-gray-500 text-xs uppercase mb-3">{t('pickupPoint.clientData')}</h2>
-                    <div className="space-y-3">
-                        <div className="relative">
-                            <User className="absolute left-3 top-2.5 text-gray-400 w-4 h-4"/>
-                            <input type="text" placeholder={t('pickupPoint.nameRequired')} className="w-full pl-9 p-2 border rounded-lg dark:bg-gray-700 dark:text-white text-sm" value={client.name} onChange={e => setClient({...client, name: e.target.value})}/>
-                        </div>
-                        <div className="relative">
-                            <Phone className="absolute left-3 top-2.5 text-gray-400 w-4 h-4"/>
-                            <input type="text" placeholder={t('pickupPoint.phonePlaceholder')} className="w-full pl-9 p-2 border rounded-lg dark:bg-gray-700 dark:text-white text-sm" value={client.phone} onChange={e => setClient({...client, phone: e.target.value})}/>
-                        </div>
-                    </div>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {cart.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-50">
-                            <ShoppingBag size={48} className="mb-2"/>
-                            <p>{t('pickupPoint.emptyCartDisplay')}</p>
-                        </div>
-                    ) : (
-                        cart.map((item, idx) => (
-                            <div key={idx} className="flex flex-col gap-2 border-b border-dashed pb-3 last:border-0">
-                                <div className="flex justify-between items-start">
-                                    <div className="flex gap-3 items-center">
-                                        <div className="flex items-center border rounded-lg overflow-hidden shrink-0">
-                                            <button onClick={() => updateQty(idx, -1)} className="px-2 py-1 bg-gray-100 hover:bg-red-100">-</button>
-                                            <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
-                                            <button onClick={() => updateQty(idx, 1)} className="px-2 py-1 bg-gray-100 hover:bg-green-100">+</button>
-                                        </div>
-                                        <span className="text-sm font-bold dark:text-white w-32 truncate">{item.name}</span>
-                                    </div>
-                                    <span className="font-mono font-bold text-sm">{t('common.currency')}{(item.price * item.quantity).toFixed(2)}</span>
-                                </div>
-                                <input type="text" placeholder={t('pickupPoint.notePlaceholder')} className="w-full p-1.5 bg-gray-50 dark:bg-gray-800 rounded text-xs border-none outline-none dark:text-white" value={item.notes} onChange={e => updateNotes(idx, e.target.value)}/>
-                            </div>
-                        ))
-                    )}
-                </div>
-                <div className="p-5 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700">
-                    <div className="flex justify-between items-end mb-4">
-                        <span className="text-gray-500 font-bold">{t('pickupPoint.totalToPay')}</span>
-                        <span className="text-3xl font-black text-gray-800 dark:text-white">{t('common.currency')}{totalCart.toFixed(2)}</span>
-                    </div>
-                    <button onClick={handleSubmitOrder} disabled={isSubmitting || cart.length === 0} className="w-full py-4 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-lg flex justify-center items-center gap-2 active:scale-95 transition">
-                        {isSubmitting ? <Loader2 className="animate-spin"/> : <><CheckCircle size={20}/> {t('pickupPoint.confirmAndSend')}</>}
-                    </button>
-                </div>
-            </div>
-        </div>
-      )}
+                      </div>
+                  </div>
 
-      {/* BODY PEDIDOS ACTIVOS */}
-      {activeTab === 'active' && (
-          <div className="flex-1 overflow-y-auto p-6 bg-gray-100 dark:bg-dark-bg">
-              <div className="flex justify-end mb-4">
-                  <button onClick={loadActiveOrders} className="flex items-center gap-2 text-sm text-gray-500 hover:text-primary transition">
-                      <RefreshCw size={14} className={loadingActive ? "animate-spin" : ""}/> {t('pickupPoint.updateList')}
-                  </button>
+                  {/* Grid Productos */}
+                  <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-dark-bg">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+                          {filteredProducts.map(product => (
+                              <div key={product.id} onClick={() => handleProductClick(product)} className="bg-white dark:bg-dark-card p-3 rounded-2xl shadow-sm hover:ring-2 ring-primary/50 cursor-pointer active:scale-95 transition-all flex flex-col h-40 justify-between group relative overflow-hidden">
+                                  {product.track_stock && (
+                                      <div className={`absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${product.stock <= 5 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                                          {product.stock} u.
+                                      </div>
+                                  )}
+                                  <div>
+                                      <p className="font-bold text-gray-800 dark:text-white line-clamp-2 leading-tight">{product.name}</p>
+                                  </div>
+                                  <div className="flex justify-between items-end">
+                                       <span className="font-black text-lg text-primary">{parseFloat(product.price).toFixed(2)}</span>
+                                       <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-white flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors"><Plus size={18} /></div>
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
               </div>
 
-              {loadingActive ? (
-                  <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-                      <Loader2 className="animate-spin text-primary w-10 h-10"/>
+              {/* DERECHA: CARRITO */}
+              <div className="w-full lg:w-96 bg-white dark:bg-dark-card shadow-2xl flex flex-col z-20 shrink-0 border-l dark:border-gray-700">
+                  {/* Formulario Cliente */}
+                  <div className="p-5 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 space-y-3">
+                      <div className="relative">
+                          <User className="absolute left-3 top-3 text-gray-400 w-4 h-4"/>
+                          <input 
+                            id="clientNameInput"
+                            type="text" 
+                            placeholder={t('orderManager.clientNamePlaceholder')} 
+                            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary outline-none font-bold text-sm"
+                            value={clientName}
+                            onChange={e => setClientName(e.target.value)}
+                          />
+                      </div>
+                      <div className="relative">
+                          <Phone className="absolute left-3 top-3 text-gray-400 w-4 h-4"/>
+                          <input 
+                            type="text" 
+                            placeholder={t('orderManager.clientPhonePlaceholder')} // <--- TRADUCIDO
+                            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm"
+                            value={clientPhone}
+                            onChange={e => setClientPhone(e.target.value)}
+                          />
+                      </div>
                   </div>
+
+                  {/* Lista Items */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                      {cart.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center h-full text-gray-400 opacity-50 gap-2">
+                              <ShoppingBag size={48} strokeWidth={1}/>
+                              <p className="text-sm">Carrito vacío</p>
+                          </div>
+                      ) : (
+                          cart.map((item, idx) => (
+                              <div key={idx} className="flex gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm animate-fade-in-up">
+                                  <div className="w-8 h-8 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-lg font-bold text-sm">
+                                      {item.quantity}
+                                  </div>
+                                  <div className="flex-1">
+                                      <div className="flex justify-between">
+                                          <p className="font-bold text-sm dark:text-white line-clamp-1">{item.name}</p>
+                                          <p className="font-mono text-sm font-bold text-gray-600 dark:text-gray-300">{(item.price * item.quantity).toFixed(2)}</p>
+                                      </div>
+                                      {item.notes && <p className="text-[10px] text-gray-500 italic mt-0.5">{item.notes}</p>}
+                                  </div>
+                                  <button onClick={() => {
+                                      setCart(prev => prev.filter((_, i) => i !== idx));
+                                  }} className="text-gray-400 hover:text-red-500 transition"><Trash2 size={16}/></button>
+                              </div>
+                          ))
+                      )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="p-6 bg-white dark:bg-dark-card border-t dark:border-gray-700 shrink-0 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
+                      <div className="flex justify-between items-center mb-4">
+                          <span className="text-gray-500 font-bold uppercase text-xs tracking-widest">{t('orderManager.total')}</span>
+                          <span className="text-3xl font-black text-gray-800 dark:text-white">{t('common.currency')}{totalAmount.toFixed(2)}</span>
+                      </div>
+                      
+                      <button 
+                          onClick={handleCreateOrder}
+                          disabled={isSubmitting || cart.length === 0}
+                          className={`w-full py-4 text-white font-bold rounded-2xl shadow-xl flex items-center justify-center gap-2 text-lg transition-all active:scale-95 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-900 hover:bg-black dark:bg-primary dark:hover:bg-primary-dark'}`}
+                      >
+                          {isSubmitting ? <Loader2 className="animate-spin"/> : <><DollarSign size={20} strokeWidth={3}/> {t('orderManager.confirmOrder')}</>}
+                      </button>
+                  </div>
+              </div>
+          </div>
+      ) : (
+          // VISTA DE PEDIDOS ACTIVOS
+          <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-dark-bg">
+              {loadingOrders ? (
+                  <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12"/></div>
               ) : activeOrders.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-                      <Utensils size={48} className="mb-4 opacity-30"/>
-                      <p>{t('pickupPoint.noOrdersInProgress')}</p>
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                      <Package size={64} className="mb-4 opacity-20"/>
+                      <p className="text-lg font-medium">No hay pedidos activos para llevar.</p>
                   </div>
               ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                       {activeOrders.map(order => (
-                          <div key={order.id} className="bg-white dark:bg-dark-card rounded-2xl shadow-md border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col hover:shadow-xl transition-all">
-                              <div className="p-4 bg-blue-50 border-b border-blue-100 dark:bg-blue-900/20 dark:border-blue-800 flex justify-between items-center">
-                                  <div className="flex items-center gap-3">
-                                      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-blue-600 font-black text-sm shadow-sm border border-blue-100">#{order.order_number}</div>
-                                      <div>
-                                          <h3 className="font-bold text-gray-800 dark:text-white line-clamp-1">{order.client_name || order.pickup_name || t('pickupPoint.client')}</h3>
-                                          <p className="text-[10px] text-gray-500 font-bold uppercase">{new Date(order.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</p>
-                                      </div>
+                          <div key={order.id} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col animate-fade-in-up">
+                              <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 flex justify-between items-start">
+                                  <div>
+                                      <h3 className="font-black text-lg text-gray-800 dark:text-white">{order.client_name}</h3>
+                                      <p className="text-xs text-gray-500 font-mono">#{order.order_number}</p>
                                   </div>
+                                  <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-bold rounded-lg uppercase">
+                                      {order.status === 'pending' ? 'En Cocina' : order.status}
+                                  </span>
                               </div>
-                              <div className="p-4 flex-1">
-                                  <div className="space-y-2 mb-4">
-                                      <div className="flex justify-between items-center bg-gray-50 dark:bg-gray-800 p-2 rounded-lg">
-                                          <span className="text-xs font-bold text-gray-500 uppercase">{t('pickupPoint.status')}</span>
-                                          <span className={`px-2 py-1 rounded text-xs font-bold ${
-                                              order.status === 'ready' ? 'bg-green-100 text-green-700' : 
-                                              'bg-orange-100 text-orange-700'
-                                          }`}>
-                                              {order.status === 'ready' ? t('pickupPoint.ready') : t('pickupPoint.inKitchen')}
+                              
+                              <div className="p-4 flex-1 space-y-2">
+                                  {order.details.map((item, i) => (
+                                      <div key={i} className="flex justify-between text-sm">
+                                          <span className="text-gray-600 dark:text-gray-300 font-medium">
+                                              <span className="font-bold mr-1">{item.quantity}x</span> {item.product.name}
                                           </span>
                                       </div>
-                                      <div className="flex justify-between items-end">
-                                          <span className="text-xs text-gray-400">{t('pickupPoint.totalToCollect')}</span>
-                                          <span className="text-2xl font-black text-gray-800 dark:text-white">{t('common.currency')}{parseFloat(order.total).toFixed(2)}</span>
-                                      </div>
-                                  </div>
+                                  ))}
                               </div>
-                              <div className="p-4 border-t dark:border-gray-700">
+
+                              <div className="p-4 bg-gray-50 dark:bg-gray-800/50 border-t dark:border-gray-700 flex items-center justify-between">
+                                  <span className="font-black text-xl text-gray-800 dark:text-white">
+                                      {parseFloat(order.total).toFixed(2)} Bs
+                                  </span>
                                   <button 
-                                    onClick={() => handleInitiateCheckout(order)} 
-                                    disabled={order.status !== 'ready' && order.status !== 'pending' && order.status !== 'cooking' && order.status !== 'pending_payment'} 
-                                    className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-md flex justify-center items-center gap-2 active:scale-95 transition disabled:bg-gray-300"
+                                      onClick={() => handleSendToCashier(order.id)}
+                                      className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-sm text-xs flex items-center gap-1 transition-transform active:scale-95"
                                   >
-                                      <DollarSign size={18}/> {t('pickupPoint.collect')}
+                                      <CheckCircle size={14}/> Enviar a Caja
                                   </button>
                               </div>
                           </div>
@@ -363,7 +398,60 @@ const PickupPoint = () => {
           </div>
       )}
 
-      <CheckoutModal isOpen={isCheckoutOpen} onClose={() => setIsCheckoutOpen(false)} onInvoiceGenerated={handleConfirmCheckout} />
+      {/* MODAL AGREGAR (Mismo código de antes) */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={selectedProduct?.name || 'Producto'}>
+        <form onSubmit={addToCart} className="space-y-6">
+            <div className="text-center space-y-1">
+                <p className="text-4xl font-black text-primary">
+                    {t('common.currency')}{selectedProduct ? parseFloat(selectedProduct.price).toFixed(2) : '0.00'}
+                </p>
+                {selectedProduct?.track_stock && (
+                    <p className={`text-xs font-bold uppercase ${selectedProduct.stock < 5 ? 'text-red-500' : 'text-gray-400'}`}>
+                        Stock Disponible: {selectedProduct.stock}
+                    </p>
+                )}
+            </div>
+
+            <div>
+                <label className="block text-center text-sm font-bold mb-3 text-gray-500 uppercase tracking-widest">
+                    {t('orderManager.quantity')}
+                </label>
+                <div className="flex items-center justify-center gap-4">
+                    <button type="button" onClick={() => qty > 1 && setQty(qty - 1)} className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 flex items-center justify-center text-gray-600 dark:text-white transition active:scale-90">
+                        <Minus size={28} strokeWidth={3}/>
+                    </button>
+                    <input 
+                        type="number" 
+                        className="w-24 text-center text-4xl font-black bg-transparent dark:text-white border-none outline-none" 
+                        value={qty} 
+                        onChange={e => {
+                            const val = parseInt(e.target.value);
+                            if (selectedProduct?.track_stock && val > selectedProduct.stock) return;
+                            setQty(val);
+                        }} 
+                    />
+                    <button type="button" onClick={() => {
+                        if (selectedProduct?.track_stock) {
+                            const inCart = cart.find(x => x.id === selectedProduct.id)?.quantity || 0;
+                            if ((qty + inCart) >= selectedProduct.stock) return toast.error('Tope de stock');
+                        }
+                        setQty(qty + 1);
+                    }} className="w-16 h-16 rounded-2xl bg-primary hover:bg-primary-dark text-white shadow-lg flex items-center justify-center transition active:scale-95">
+                        <Plus size={28} strokeWidth={3}/>
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <label className="block text-sm font-bold mb-2 dark:text-white">{t('orderManager.notes')}</label>
+                <textarea rows="2" className="w-full p-4 border rounded-2xl bg-gray-50 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-primary outline-none resize-none" placeholder="Sin cebolla, extra salsa..." value={notes} onChange={e => setNotes(e.target.value)} />
+            </div>
+
+            <button type="submit" className="w-full py-4 bg-primary text-white font-bold rounded-2xl shadow-xl text-lg mt-4 active:scale-95 transition">
+                {t('orderManager.confirm')}
+            </button>
+        </form>
+      </Modal>
     </div>
   );
 };

@@ -1,28 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
-import { financeService } from '../services/financeService';
+import  financeService  from '../services/financeService';
 import Swal from 'sweetalert2';
 
 export const useCashRegister = () => {
-  const [session, setSession] = useState(null); // Datos de la sesión actual
-  const [isRegisterOpen, setIsRegisterOpen] = useState(null); // null=cargando, true=abierta, false=cerrada
+  const [session, setSession] = useState(null);
+  const [isRegisterOpen, setIsRegisterOpen] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 1. VERIFICAR ESTADO AL INICIAR
   const checkStatus = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await financeService.getCashRegisterStatus();
+      const data = await financeService.getCashRegisterStatus(); 
       setSession(data);
       setIsRegisterOpen(true);
     } catch (error) {
-      // Si es 404, es que NO hay caja abierta. Eso es bueno (sabemos que está cerrada)
-      if (error.response && error.response.status === 404) {
-        setSession(null);
-        setIsRegisterOpen(false);
-      } else {
-        console.error("Error verificando caja:", error);
-        // Opcional: Mostrar error si es algo técnico (500)
-      }
+       setIsRegisterOpen(false);
     } finally {
       setLoading(false);
     }
@@ -32,12 +24,11 @@ export const useCashRegister = () => {
     checkStatus();
   }, [checkStatus]);
 
-  // 2. ABRIR CAJA
   const openRegister = async (amount) => {
     try {
       await financeService.openCashRegister(parseFloat(amount));
       Swal.fire('¡Turno Iniciado!', 'Caja abierta correctamente.', 'success');
-      checkStatus(); // Recargar estado para desbloquear pantalla
+      checkStatus();
       return true;
     } catch (error) {
       console.error(error);
@@ -46,16 +37,14 @@ export const useCashRegister = () => {
     }
   };
 
-  // 3. CERRAR CAJA (CORTE)
-  const closeRegister = async (countedCash, notes) => {
+  const closeRegister = async ({ cash_count, notes }) => {
     try {
       const result = await financeService.closeCashRegister({ 
-          cash_count: parseFloat(countedCash), 
+          cash_count: parseFloat(cash_count), 
           notes 
       });
       
-      // Mostrar resumen final
-      const diff = result.difference || 0; // Asumiendo que el back devuelve la diferencia
+      const diff = result.difference || 0;
       const diffMsg = diff === 0 ? 'Cuadre Perfecto' : (diff > 0 ? `Sobra: ${diff}` : `Falta: ${diff}`);
       
       await Swal.fire({
@@ -65,12 +54,37 @@ export const useCashRegister = () => {
       });
 
       setSession(null);
-      setIsRegisterOpen(false); // Esto bloqueará la pantalla de nuevo (Modal Apertura)
+      setIsRegisterOpen(false);
       return true;
 
     } catch (error) {
-      console.error(error);
-      Swal.fire('Error', 'No se pudo cerrar la caja.', 'error');
+      console.error("Error al cerrar caja:", error);
+      
+      // 🔥 AQUÍ ESTÁ EL CAMBIO CLAVE PARA LEER TU FILTRO DE NESTJS 🔥
+      const responseData = error.response?.data;
+      
+      // 1. Intentamos leer dentro de 'error' (por tu filtro http-exception)
+      let serverMessage = responseData?.error?.message; 
+      
+      // 2. Si no estaba ahí, intentamos leerlo directo (por si el filtro falló o es otro tipo de error)
+      if (!serverMessage) {
+          serverMessage = responseData?.message;
+      }
+
+      // 3. Formateamos si es un array (validaciones)
+      const displayMessage = serverMessage 
+          ? (Array.isArray(serverMessage) ? serverMessage.join(', ') : serverMessage)
+          : 'Ocurrió un error inesperado al cerrar la caja.';
+
+      // 4. Mostramos la alerta con el mensaje CORRECTO
+      await Swal.fire({
+          title: 'No se pudo cerrar',
+          text: displayMessage, // Ahora sí saldrá: "⛔ ACCESO DENEGADO..."
+          icon: 'error',
+          confirmButtonColor: '#d33',
+          confirmButtonText: 'Entendido'
+      });
+      
       return false;
     }
   };

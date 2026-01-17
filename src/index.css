@@ -3,39 +3,74 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ESTILOS DE IMPRESIÓN GLOBALES */
+/* =========================================
+   ESTILOS DE IMPRESIÓN TÉRMICA (80mm)
+   ========================================= */
 @media print {
-  /* 1. Ocultar TODO lo que hay en la pantalla */
-  body * {
-    visibility: hidden;
+  
+  /* 🔥 1. LA CLAVE: ANULAR EL MODAL 🔥 */
+  /* Esto elimina la 'jaula' que crea el modal (transform y fixed) */
+  * {
+    transform: none !important;       /* Rompe la dependencia del padre */
+    transition: none !important;      /* Quita animaciones */
+    box-shadow: none !important;      /* Limpia sombras */
   }
 
-  /* 2. Hacer visible SOLO el contenedor del ticket y su contenido */
-  #invoice-ticket-container,
-  #invoice-ticket-container * {
-    visibility: visible !important;
+  /* Liberar el scroll del modal para que no corte el ticket */
+  .fixed, .absolute, .overflow-y-auto {
+    position: static !important;
+    overflow: visible !important;
   }
 
-  /* 3. Posicionamiento FIJO para "sacarlo" del Modal */
-  #invoice-ticket-container {
-    position: fixed !important; /* Fixed es la clave: ignora al padre (Modal) */
-    left: 0 !important;
-    top: 0 !important;
-    width: 80mm !important; /* Ancho estándar de ticket térmico */
-    margin: 0 !important;
-    padding: 0 !important;
-    background-color: white !important;
-    z-index: 999999999 !important; /* Encima de todo */
-  }
-
-  /* 4. Ajustes de página física */
+  /* 2. Configuración de página */
   @page {
-    size: 80mm auto; /* Papel continuo */
+    size: 80mm auto;
     margin: 0mm;
   }
 
-  /* 5. Limpieza visual */
-  button, .no-print, ::-webkit-scrollbar {
-    display: none !important;
+  body {
+    margin: 0;
+    padding: 0;
+    width: 80mm;
+    background-color: white;
+  }
+
+  /* 3. Ocultar TODO (Modo Fantasma) */
+  body * {
+    visibility: hidden;
+    height: 0;
+  }
+
+  /* 4. Resucitar SOLO el Ticket */
+  #invoice-ticket-container,
+  #invoice-ticket-container * {
+    visibility: visible !important;
+    height: auto !important;
+    overflow: visible !important;
+    color: black !important; /* Forzar negro puro */
+  }
+
+  /* 5. Posicionamiento del Ticket (Ahora sí funcionará bien) */
+  #invoice-ticket-container {
+    position: fixed !important; /* Al no haber transform, esto va al papel */
+    left: 0 !important;
+    top: 0 !important;
+    width: 72mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    z-index: 9999999999 !important; /* Encima de Dios */
+  }
+
+  /* Utilidades extra */
+  .no-print { display: none !important; }
+  
+  /* Excepción para fondos negros (Cocina) */
+  #invoice-ticket-container .bg-black {
+    background-color: black !important;
+    color: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
+

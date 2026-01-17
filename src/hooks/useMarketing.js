@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import marketingService from '../services/marketingService';
 import Swal from 'sweetalert2';
+import { useAuth } from '../context/AuthContext'; // 🔥 1. Importar Auth
 
 export const useMarketing = () => {
   const queryClient = useQueryClient();
-
+  const { hasRole } = useAuth(); // 🔥 2. Obtener rol
+  const isAdmin = hasRole(['admin', 'super-admin']); // 🔥 3. Validar si es jefe
   // --- QUERIES ---
   const discountsQuery = useQuery({
     queryKey: ['discounts'],
@@ -16,29 +18,23 @@ export const useMarketing = () => {
     queryKey: ['discounts-trash'],
     queryFn: marketingService.getTrash,
     staleTime: 1000 * 60 * 5,
+    enabled: !!isAdmin, // 🔥 4. BLOQUEO: Solo se ejecuta si es Admin
   });
 
   const refreshAll = () => {
     queryClient.invalidateQueries(['discounts']);
-    queryClient.invalidateQueries(['discounts-trash']);
+    if (isAdmin) queryClient.invalidateQueries(['discounts-trash']); // 🔥 5. Invalidar solo si corresponde
   };
-
-const handleError = (error) => {
+  
+  const handleError = (error) => {
     console.error("Error Marketing:", error);
     let message = 'Error al procesar la solicitud';
-
     if (error.response?.data) {
         const data = error.response.data;
-        // NestJS devuelve arrays de errores a veces
-        if (Array.isArray(data.message)) {
-            message = data.message.join('<br>'); 
-        } else if (data.message) {
-            message = data.message;
-        } else if (data.error) {
-            message = data.error;
-        }
+        if (Array.isArray(data.message)) message = data.message.join('<br>'); 
+        else if (data.message) message = data.message;
+        else if (data.error) message = data.error;
     } 
-    
     Swal.fire({ title: 'Atención', html: message, icon: 'warning' });
   };
 

@@ -1,11 +1,10 @@
 import api from '../api/axios'; 
 
-export const financeService = {
+// 🔥 CORRECCIÓN: Usamos 'export default' para que se pueda importar sin llaves {}
+export default {
     // PASO 2: Obtener lista para el cajero
-    // Verifica que esta ruta (GET /orders) exista en tu backend.
     getPendingOrders: async () => {
         try {
-            // Usamos la ruta con el filtro que definimos
             const response = await api.get('/orders?status=pending_payment');
             return response.data;
         } catch (error) {
@@ -13,15 +12,19 @@ export const financeService = {
             throw error;
         }
     },
+
+    getDailyShifts: async (date) => {
+        const query = date ? `?date=${date}` : '';
+        const { data } = await api.get(`/finance/cash-register/daily-shifts${query}`);
+        return data;
+    },
+
     getAllInvoices: async (type = 'dine_in', period = 'day', from = null, to = null, page = 1, limit = 10) => {
         let query = `?type=${type}&page=${page}&limit=${limit}`;
         
-        // Prioridad 1: Fechas manuales (Rango personalizado)
         if (from && to) {
             query += `&from=${from}&to=${to}`;
-        } 
-        // Prioridad 2: Periodo predefinido (day, week, month)
-        else if (period) {
+        } else if (period) {
             query += `&period=${period}`;
         }
 
@@ -34,14 +37,13 @@ export const financeService = {
         return data;
     },
 
-    // NUEVO: Obtener UNA factura por ID (Para reimprimir)
     getInvoiceById: async (id) => {
         const { data } = await api.get(`/finance/invoices/${id}`);
         return data;
     },
 
     // Configuración
-    getConfig: async () => {
+    getSettings: async () => { // <--- RENOMBRADO A getSettings PARA COINCIDIR CON TU COMPONENTE
         try {
             const response = await api.get('/finance/config');
             return response.data;
@@ -50,7 +52,7 @@ export const financeService = {
         }
     },
 
-    updateConfig: async (data) => {
+    updateSettings: async (data) => { // <--- RENOMBRADO A updateSettings
         const response = await api.put('/finance/config', data);
         return response.data;
     },
@@ -62,7 +64,6 @@ export const financeService = {
             payment_method: payment_method || 'EFECTIVO' 
         };
         
-        // Solo enviamos datos si no están vacíos
         if (client_name && client_name.trim().length > 0) payload.client_name = client_name;
         if (client_nit && client_nit.trim().length > 0) payload.client_nit = client_nit;
 
@@ -71,18 +72,15 @@ export const financeService = {
     },
 
     getCashRegisterStatus: async () => {
-        // Si devuelve 200, hay caja. Si devuelve 404, axios lanzará error.
         const { data } = await api.get('/finance/cash-register/status');
         return data;
     },
 
-    // B. Abrir Caja
     openCashRegister: async (starting_cash) => {
         const { data } = await api.post('/finance/cash-register/open', { starting_cash });
         return data;
     },
 
-    // C. Cerrar Caja
     closeCashRegister: async ({ cash_count, notes }) => {
         const { data } = await api.post('/finance/cash-register/close', { cash_count, notes });
         return data;

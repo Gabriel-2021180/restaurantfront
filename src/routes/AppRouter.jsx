@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import ProtectedRoute from '../components/layout/ProtectedRoute';
 import Layout from "../components/layout/Layout";
 
@@ -27,131 +26,141 @@ import UserProfile from '../pages/profile/UserProfile';
 import RequireSecuritySetup from '../components/auth/RequireSecuritySetup';
 import TipsPage from '../pages/waiter/TipsPage';
 
-const WaiterOnlyRoute = ({ children }) => {
-  const { user } = useAuth();
-  
-  const roleName = (user?.role?.slug || user?.role?.name || user?.role || '').toLowerCase();
-  
-  if (roleName !== 'waiter' && roleName !== 'mesero') {
-    return <Navigate to="/" replace />;
-  }
-
-  return children;
-};
-
 const AppRouter = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* PÚBLICAS */}
+        {/* RUTAS PÚBLICAS */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/print/kitchen/:orderId" element={<KitchenPrintView />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        {/* PROTEGIDAS */}
-        <Route path="/*" element={
-          <ProtectedRoute>
+
+        {/* RUTAS PROTEGIDAS */}
+        <Route 
+          path="/*" 
+          element={
+            <ProtectedRoute>
               <RequireSecuritySetup>
-            <Layout>
-              <Routes>
-                {/* ... other protected routes ... */}
-                <Route path="/profile" element={<UserProfile />} />
-                <Route path="/" element={
-                    <ProtectedRoute allowedRoles={['super-admin', 'admin']}>
+                <Layout>
+                  <Routes>
+                    {/* Perfil de usuario: accesible para todos los logueados */}
+                    <Route path="/profile" element={<UserProfile />} />
+
+                    {/* Dashboard: Super Admin y Admin */}
+                    <Route path="/" element={
+                      <ProtectedRoute allowedRoles={['super-admin', 'admin']}>
                         <Dashboard />
-                    </ProtectedRoute>
-                } />
-                
-                {/* REPORTE DIARIO: Jefes + CAJERO */}
-                <Route path="/admin/report" element={
-                    <ProtectedRoute allowedRoles={['super-admin', 'admin', 'cashier']}>
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Reporte Diario: Super Admin, Admin y Cajero */}
+                    <Route path="/admin/report" element={
+                      <ProtectedRoute allowedRoles={['super-admin', 'admin', 'cashier']}>
                         <DailyReport />
-                    </ProtectedRoute>
-                } />
+                      </ProtectedRoute>
+                    } />
 
-                <Route path="/pickup" element={
-                    <ProtectedRoute allowedRoles={['super-admin', 'admin', 'cashier']}>
+                    {/* Para llevar/Pickup: Super Admin, Admin y Cajero */}
+                    <Route path="/pickup" element={
+                      <ProtectedRoute allowedRoles={['super-admin', 'admin', 'cashier']}>
                         <PickupPoint />
-                    </ProtectedRoute>
-                } />
+                      </ProtectedRoute>
+                    } />
 
-                {/* USUARIOS: Solo Super Admin */}
-                <Route path="/users" element={
-                    <ProtectedRoute allowedRoles={['super-admin']}>
+                    {/* Gestión de Usuarios: Solo Super Admin */}
+                    <Route path="/users" element={
+                      <ProtectedRoute allowedRoles={['super-admin']}>
                         <UsersPage />
-                    </ProtectedRoute>
-                } />
+                      </ProtectedRoute>
+                    } />
 
-                {/* --- MÓDULO DE MESERO: PROPINAS --- */}
-                <Route path="/tips" element={
-                    <WaiterOnlyRoute>
-                        <TipsPage />
-                    </WaiterOnlyRoute>
-                } />
-
-                {/* FACTURAS: Jefes + CAJERO */}
-                <Route path="/admin/invoices" element={
-                    <ProtectedRoute allowedRoles={['super-admin', 'admin', 'cashier']}>
-                        <InvoiceHistory />
-                    </ProtectedRoute>
-                } />
-
-                {/* CAJA: Jefes + CAJERO */}
-                <Route path="/cashier" element={
-                    <ProtectedRoute allowedRoles={['super-admin', 'admin', 'cashier']}>
-                        <CashierDashboard />
-                    </ProtectedRoute>
-                } />
-
-                {/* CONFIG FACTURACIÓN: Solo Jefes */}
-                <Route path="/settings/finance" element={
-                    <ProtectedRoute allowedRoles={['super-admin', 'admin']}>
-                        <FinanceSettings />
-                    </ProtectedRoute>
-                } />
-
-                {/* INVENTARIO: Jefes + Chef */}
-                <Route path="/inventory" element={
-                    <ProtectedRoute allowedRoles={['super-admin', 'admin', 'chef']}>
-                        <Supplies />
-                    </ProtectedRoute>
-                } />
-
-                {/* --- GESTIÓN MENÚ --- */}
-                <Route path="/products" element={
-                    <ProtectedRoute allowedRoles={['super-admin', 'admin']}>
-                        <Products />
-                    </ProtectedRoute>
-                } />
-                <Route path="/categories" element={
-                    <ProtectedRoute allowedRoles={['super-admin', 'admin']}>
-                        <Categories />
-                    </ProtectedRoute>
-                } />
-                
-                {/* PROMOCIONES: Jefes + MESERO (Para verlas) */}
-                <Route path="/promotions" element={
-                    <ProtectedRoute allowedRoles={['super-admin', 'admin', 'waiter']}>
-                        <Promotions />
-                    </ProtectedRoute>
-                } />
-
-                {/* OPERATIVO COMÚN */}
-                <Route path="/tables" element={<Tables />} />
-                <Route path="/orders/:orderId" element={<OrderManager />} />
-                <Route path="/kitchen" element={<KitchenControl />} />
-                <Route path="/admin/staff-dashboard" element={
+                    {/* Rendimiento del Personal: Solo Super Admin */}
+                    <Route path="/admin/staff-dashboard" element={
                       <ProtectedRoute allowedRoles={['super-admin']}>
                           <StaffDashboard />
                       </ProtectedRoute>
-                  } />
-                
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Layout>
-            </RequireSecuritySetup>
-          </ProtectedRoute>
-        } />
+                    } />
+
+                    {/* Propinas: Solo Mesero */}
+                    <Route path="/tips" element={
+                      <ProtectedRoute allowedRoles={['waiter']}>
+                        <TipsPage />
+                      </ProtectedRoute>
+                    } />
+
+                    {/* Historial de Facturas: Super Admin, Admin y Cajero */}
+                    <Route path="/admin/invoices" element={
+                      <ProtectedRoute allowedRoles={['super-admin', 'admin', 'cashier']}>
+                        <InvoiceHistory />
+                      </ProtectedRoute>
+                    } />
+
+                    {/* Dashboard de Caja: Super Admin, Admin y Cajero */}
+                    <Route path="/cashier" element={
+                      <ProtectedRoute allowedRoles={['super-admin', 'admin', 'cashier']}>
+                        <CashierDashboard />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Monitor de Cocina: Super Admin, Admin y Cajero */}
+                    <Route path="/kitchen" element={
+                      <ProtectedRoute allowedRoles={['super-admin', 'admin', 'cashier']}>
+                        <KitchenControl />
+                      </ProtectedRoute>
+                    } />
+
+                    {/* Configuración Financiera: Super Admin y Admin */}
+                    <Route path="/settings/finance" element={
+                      <ProtectedRoute allowedRoles={['super-admin', 'admin']}>
+                        <FinanceSettings />
+                      </ProtectedRoute>
+                    } />
+
+                    {/* Inventario: Super Admin y Admin */}
+                    <Route path="/inventory" element={
+                      <ProtectedRoute allowedRoles={['super-admin', 'admin']}>
+                        <Supplies />
+                      </ProtectedRoute>
+                    } />
+
+                    {/* Gestión de Menú: Super Admin y Admin */}
+                    <Route path="/products" element={
+                      <ProtectedRoute allowedRoles={['super-admin', 'admin']}>
+                        <Products />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/categories" element={
+                      <ProtectedRoute allowedRoles={['super-admin', 'admin']}>
+                        <Categories />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Promociones: Super Admin, Admin y Mesero */}
+                    <Route path="/promotions" element={
+                      <ProtectedRoute allowedRoles={['super-admin', 'admin', 'waiter']}>
+                        <Promotions />
+                      </ProtectedRoute>
+                    } />
+
+                    {/* Mesas: Super Admin, Admin y Mesero (Cajero NO) */}
+                    <Route path="/tables" element={
+                      <ProtectedRoute allowedRoles={['super-admin', 'admin', 'waiter']}>
+                        <Tables />
+                      </ProtectedRoute>
+                    } />
+
+                    {/* Detalle de orden: Accesible a todos los autenticados por ahora */}
+                    <Route path="/orders/:orderId" element={<OrderManager />} />
+                    
+                    {/* Redirección para cualquier otra ruta no encontrada */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </Layout>
+              </RequireSecuritySetup>
+            </ProtectedRoute>
+          } 
+        />
       </Routes>
     </BrowserRouter>
   );

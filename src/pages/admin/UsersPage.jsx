@@ -13,14 +13,10 @@ const UsersPage = () => {
   
   // Modales
   const [isInviteOpen, setIsInviteOpen] = useState(false);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
   
   // Estado Invitación
   const [selectedRoleInvite, setSelectedRoleInvite] = useState('');
   const [generatedCode, setGeneratedCode] = useState(null);
-
-  // Estado Crear Manual
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', role_id: '' });
 
   useEffect(() => {
     loadData();
@@ -34,16 +30,28 @@ const UsersPage = () => {
         userService.getRoles()
       ]);
 
-      // --- PROTECCIÓN CONTRA FORMATO DE DATOS ---
-      // Aseguramos que sea un array, venga como venga
       const safeUsers = Array.isArray(usersData) ? usersData : (usersData.data || []);
       const safeRoles = Array.isArray(rolesData) ? rolesData : (rolesData.data || []);
 
+      // 🔥 FILTRO DE ROLES: Quitamos Super Admin y Chef
+      const allowedRoles = safeRoles.filter(role => {
+          const name = (role.slug || role.name || '').toLowerCase();
+          
+          // 1. Ocultar Super Admin (Seguridad)
+          if (name.includes('super')) return false;
+          
+          // 2. Ocultar Chef (Requerimiento de negocio)
+          if (name.includes('chef') || name.includes('cocinero')) return false;
+
+          // Deberían quedar solo: admin, mesero(waiter), cajero(cashier)
+          return true;
+      });
+
       setUsers(safeUsers);
-      setRoles(safeRoles);
+      setRoles(allowedRoles); // <--- Guardamos la lista filtrada
+      
     } catch (error) {
       console.error(t('usersPage.errorLoadingUsers'), error);
-      // No mostramos alerta bloqueante para no interrumpir la navegación
     } finally {
       setLoading(false);
     }
@@ -69,20 +77,6 @@ const UsersPage = () => {
     });
   };
 
-  // --- LÓGICA CREAR MANUAL ---
-  const handleCreateManual = async (e) => {
-    e.preventDefault();
-    try {
-      await userService.createUser(formData);
-      Swal.fire(t('usersPage.created'), t('usersPage.userCreatedSuccessfully'), 'success');
-      setIsCreateOpen(false);
-      setFormData({ name: '', email: '', password: '', role_id: '' });
-      loadData();
-    } catch (error) {
-      Swal.fire(t('usersPage.error'), t('usersPage.couldNotCreateUser'), 'error');
-    }
-  };
-
   if (loading) return <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12"/></div>;
 
   return (
@@ -94,14 +88,11 @@ const UsersPage = () => {
             </h2>
             <p className="text-gray-500 text-sm">{t('usersPage.manageAccessSystem')}</p>
         </div>
-        <div className="flex gap-3">
-            <button onClick={() => setIsCreateOpen(true)} className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-xl font-bold text-sm transition">
-                {t('usersPage.createManually')}
-            </button>
-            <button onClick={() => setIsInviteOpen(true)} className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded-xl font-bold flex gap-2 items-center shadow-lg transition active:scale-95">
-                <UserPlus size={18}/> {t('usersPage.generateInvitation')}
-            </button>
-        </div>
+        
+        {/* ÚNICO BOTÓN: Generar Invitación */}
+        <button onClick={() => setIsInviteOpen(true)} className="bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-xl font-bold flex gap-2 items-center shadow-lg transition active:scale-95">
+            <UserPlus size={18}/> {t('usersPage.generateInvitation')}
+        </button>
       </div>
 
       {/* GRID DE USUARIOS */}
@@ -117,7 +108,10 @@ const UsersPage = () => {
                             {user.role?.name || t('usersPage.noRole')}
                         </span>
                     </div>
-                    <h3 className="font-bold text-lg text-gray-800 dark:text-white truncate">{user.name}</h3>
+                    {/* Nombres completos concatenados */}
+                    <h3 className="font-bold text-lg text-gray-800 dark:text-white truncate">
+                        {user.first_names} {user.last_names}
+                    </h3>
                     <p className="text-gray-500 text-sm truncate mb-4">{user.email}</p>
                     
                     <div className="text-xs text-gray-400">
@@ -132,7 +126,7 @@ const UsersPage = () => {
         )}
       </div>
 
-      {/* MODAL INVITACIÓN */}
+      {/* MODAL INVITACIÓN (Único modal activo) */}
       <Modal isOpen={isInviteOpen} onClose={() => {setIsInviteOpen(false); setGeneratedCode(null);}} title={t('usersPage.generateAccessCode')}>
         {!generatedCode ? (
             <div className="space-y-4">
@@ -156,7 +150,7 @@ const UsersPage = () => {
                     <p className="text-xs text-gray-500 uppercase font-bold tracking-widest mb-2">{t('usersPage.generatedCode')}</p>
                     <div className="bg-gray-100 dark:bg-gray-800 p-5 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-600 relative cursor-pointer hover:border-primary transition" onClick={copyToClipboard}>
                         <p className="text-4xl font-mono font-black text-primary tracking-widest">{generatedCode.code}</p>
-                        <p className="text-[10px] text-gray-400 mt-2">{t('usersPage.clickToCopy')}</p>
+                        <p className="text--[10px] text-gray-400 mt-2">{t('usersPage.clickToCopy')}</p>
                     </div>
                 </div>
                 <div className="bg-orange-50 text-orange-700 p-3 rounded-xl text-xs">⚠️ {t('usersPage.codeExpires')}</div>
@@ -165,36 +159,6 @@ const UsersPage = () => {
                 </button>
             </div>
         )}
-      </Modal>
-
-      {/* MODAL CREAR MANUAL */}
-      <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title={t('usersPage.createUserManually')}>
-        <form onSubmit={handleCreateManual} className="space-y-4">
-            <div>
-                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('usersPage.fullName')}</label>
-                <input type="text" required className="w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white" value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})}/>
-            </div>
-            <div>
-                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('usersPage.email')}</label>
-                <input type="email" required className="w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white" value={formData.email} onChange={e=>setFormData({...formData, email:e.target.value})}/>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-                <div>
-                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('usersPage.password')}</label>
-                    <input type="password" required className="w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white" value={formData.password} onChange={e=>setFormData({...formData, password:e.target.value})}/>
-                </div>
-                <div>
-                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('usersPage.role')}</label>
-                    <select required className="w-full p-3 border rounded-xl dark:bg-gray-800 dark:text-white" value={formData.role_id} onChange={e=>setFormData({...formData, role_id:e.target.value})}>
-                        <option value="">{t('usersPage.choose')}</option>
-                        {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                    </select>
-                </div>
-            </div>
-            <button type="submit" className="w-full py-3 bg-primary text-white font-bold rounded-xl mt-2 shadow hover:bg-primary-dark">
-                {t('usersPage.createUser')}
-            </button>
-        </form>
       </Modal>
     </div>
   );

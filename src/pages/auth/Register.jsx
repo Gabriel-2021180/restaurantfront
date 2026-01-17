@@ -52,15 +52,34 @@ const Register = () => {
     setLoading(true);
     try {
       await userService.requestEmailVerification(email);
-      setStep(3); // Pasamos al formulario final
+      setStep(3);
       Swal.fire({
         title: t('register.codeSent'),
         text: t('register.checkInboxForCode', { email: email }),
         icon: 'info'
       });
     } catch (error) {
-      console.error(error);
-      Swal.fire(t('register.error'), t('register.couldNotSendEmail'), 'error');
+      console.error("Error completo:", error.response); // Para depurar
+
+      // 1. OBTENER LA DATA
+      const resData = error.response?.data;
+
+      // 2. BUSCAR EL MENSAJE (Estrategia de búsqueda profunda)
+      // Primero buscamos dentro de 'error.message' (por tu filtro)
+      // Si no, buscamos en 'message' directo (por si el filtro cambia)
+      // Si no, usamos 'error' directo (si fuera solo un string)
+      let serverMessage = resData?.error?.message || resData?.message || resData?.error;
+
+      // 3. FORMATEAR SI ES ARRAY (Validaciones de Nest suelen ser arrays)
+      if (Array.isArray(serverMessage)) {
+        serverMessage = serverMessage.join(', ');
+      }
+
+      // 4. FALLBACK FINAL
+      const displayMsg = serverMessage || t('register.couldNotSendEmail');
+
+      Swal.fire(t('register.error'), String(displayMsg), 'error');
+      
     } finally { setLoading(false); }
   };
 

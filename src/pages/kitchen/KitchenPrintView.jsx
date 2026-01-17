@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import orderService from '../../services/orderService';
 import userService from '../../services/userService'; // <--- IMPORTANTE: Lo necesitamos de vuelta
 import KitchenTicket from '../../components/orders/KitchenTicket';
-
+import { ChefHat, Printer, RefreshCw, LayoutGrid, List, Loader2, ShoppingBag, Utensils } from 'lucide-react';
 const KitchenPrintView = () => {
   const { t } = useTranslation();
   const { orderId } = useParams();

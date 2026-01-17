@@ -2,12 +2,17 @@ import { useState, useEffect, useRef } from 'react';
 import api from '../api/axios'; 
 import orderService from '../services/orderService'; 
 import Swal from 'sweetalert2';
+import toast from 'react-hot-toast'; 
+import { useQueryClient, useMutation } from '@tanstack/react-query'; // Importamos useMutation
 
 export const useOrders = (orderId = null) => {
   const [order, setOrder] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
   
+  // Mantenemos isSyncing manual por compatibilidad, pero la lógica real la llevará la mutación
+  const [isSyncing, setIsSyncing] = useState(false); 
+  
+  const queryClient = useQueryClient();
   const isMounted = useRef(true);
 
   useEffect(() => {
@@ -30,140 +35,57 @@ export const useOrders = (orderId = null) => {
     }
   };
 
-  const addItem = async ({ product_id, quantity, notes }, productData) => {
-    // 1. VALIDACIÓN PRECIO ESTRICTA (Si llega 0, intenta usar el del objeto producto)
-    const safeQty = parseInt(quantity) || 1; 
-    let safePrice = parseFloat(productData.price);
-    
-    // Si por alguna razón el precio es inválido, forzamos 0 pero avisamos en consola
-    if (isNaN(safePrice)) safePrice = 0;
-
-    // Generar ID temporal robusto
-    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    const tempItem = { 
-        id: tempId, 
-        product: productData, // Guardamos toda la info del producto para no perder nombre/precio
-        product_name: productData.name, // Respaldo visual
-        quantity: safeQty, 
-        price_at_purchase: safePrice, 
-        notes: notes || '', 
-        isTemp: true 
-    };
-
-    // 2. UI OPTIMISTA: Agregamos inmediatamente
-    setOrder(prev => {
-        if (!prev) return prev;
-        // Evitamos duplicados temporales por si acaso
-        const exists = prev.details?.find(i => i.id === tempId);
-        if (exists) return prev;
-
-        const newDetails = [...(prev.details || []), tempItem];
-        
-        // Recalcular total localmente
-        const currentTotal = parseFloat(prev.total) || 0;
-        const addedAmount = safePrice * safeQty;
-        const newTotal = (currentTotal + addedAmount).toFixed(2);
-        
-        return { ...prev, details: newDetails, total: newTotal };
-    });
-
-    try {
-      setIsSyncing(true);
-      
-      // 3. ENVIAR AL BACKEND
-      const { data: savedItem } = await api.post(`/orders/${orderId}/items`, { 
-          product_id, 
-          quantity: safeQty, 
-          notes 
-      });
-      
-      // 4. ACTUALIZACIÓN SILENCIOSA (ID Temporal -> ID Real)
-      // AQUÍ ESTABA EL ERROR DE $0.00: Al reemplazar, nos aseguramos de mantener el precio y el producto
-      if (isMounted.current) {
-          setOrder(prev => {
-              if (!prev) return prev;
-              const newDetails = prev.details.map(item => {
-                  if (item.id === tempId) {
-                      return { 
-                          ...savedItem, // Datos del server (ID real)
-                          product: productData, // MANTENEMOS la info visual del producto
-                          price_at_purchase: safePrice, // FORZAMOS el precio correcto
-                          isTemp: false 
-                      };
-                  }
-                  return item;
-              });
-              return { ...prev, details: newDetails };
-          });
-      }
-
-    } catch (error) {
-      console.error("Error agregando item:", error);
-      // Rollback si falla
-      if (isMounted.current) {
-          setOrder(prev => {
-              if(!prev) return null;
-              const filtered = prev.details.filter(item => item.id !== tempId);
-              // Restar del total lo que falló
-              const currentTotal = parseFloat(prev.total) || 0;
-              const failedAmount = safePrice * safeQty;
-              return {
-                  ...prev,
-                  details: filtered,
-                  total: (currentTotal - failedAmount).toFixed(2)
-              };
-          });
-          
-          Swal.fire({
-              toast: true, position: 'top-end', icon: 'error', 
-              title: 'Error de red', text: 'No se guardó el item', showConfirmButton: false, timer: 2000
-          });
-      }
-    } finally {
-      if (isMounted.current) setIsSyncing(false);
+  // 🔥 AQUÍ ESTABA EL ERROR: Usamos useMutation correctamente 🔥
+  const addItemMutation = useMutation({
+    mutationFn: async ({ product_id, quantity, notes }) => {
+        // Hacemos la petición
+        const { data } = await api.post(`/orders/${orderId}/items`, { 
+            product_id, quantity, notes 
+        });
+        return data;
+    },
+    onMutate: () => {
+        setIsSyncing(true); // Activamos bloqueo visual
+    },
+    onSuccess: async (data) => {
+        // Si hay advertencia de stock, mostramos toast pequeño
+        if (data.warning) {
+            toast(data.warning, {
+                icon: '⚠️',
+                style: { borderRadius: '10px', background: '#FFF4E5', color: '#663C00' },
+                duration: 4000,
+            });
+        }
+        // Recargamos datos en segundo plano
+        await fetchOrder(); 
+        queryClient.invalidateQueries(['products']);
+    },
+    onError: (error) => {
+        const msg = error.response?.data?.message || 'No se pudo agregar';
+        toast.error(msg);
+    },
+    onSettled: () => {
+        if (isMounted.current) setIsSyncing(false); // Desactivamos bloqueo
     }
-  };
+  });
 
+  // Funciones auxiliares
   const removeItem = async (itemId) => {
-    const isTemp = String(itemId).toString().startsWith('temp-');
-    const previousOrder = { ...order };
-
-    setOrder(prev => {
-        if(!prev) return null;
-        const itemToRemove = prev.details?.find(i => i.id === itemId);
-        if (!itemToRemove) return prev; 
-
-        const filtered = prev.details.filter(item => item.id !== itemId);
-        
-        const itemPrice = parseFloat(itemToRemove.price_at_purchase) || 0;
-        const itemQty = parseInt(itemToRemove.quantity) || 1;
-        const deduct = itemPrice * itemQty;
-        const newTotal = (parseFloat(prev.total || 0) - deduct).toFixed(2);
-
-        return { ...prev, details: filtered, total: newTotal };
-    });
-
-    if (isTemp) return; 
-
     try {
       setIsSyncing(true);
       await api.delete(`/orders/items/${itemId}`);
+      await fetchOrder();
+      queryClient.invalidateQueries(['products']);
     } catch (error) {
-      if (isMounted.current) {
-          setOrder(previousOrder); 
-          Swal.fire({ toast: true, title: 'Error al eliminar', icon: 'error', timer: 2000 });
-      }
+      toast.error(error.response?.data?.message || 'Error al eliminar');
     } finally {
       if (isMounted.current) setIsSyncing(false);
     }
   };
   
   const openTable = async (tableId) => {
-      try {
-        const { data } = await api.post('/orders', { table_id: tableId });
-        return data;
-      } catch (error) { throw error; }
+      const { data } = await api.post('/orders', { table_id: tableId });
+      return data;
   };
 
   const sendToCashier = async (id) => {
@@ -173,14 +95,20 @@ export const useOrders = (orderId = null) => {
 
   const sendToKitchen = async (specificOrderId = null) => {
     const idToUse = specificOrderId || orderId; 
-    if (order?.details?.some(d => d.isTemp)) {
-        Swal.fire({toast: true, title: 'Guardando cambios...', icon: 'info', timer: 1000});
-        return null;
-    }
-    try {
-      return await orderService.sendToKitchen(idToUse);
-    } catch (error) { return null; }
+    const result = await orderService.sendToKitchen(idToUse);
+    await fetchOrder();
+    return result;
   };
 
-  return { order, isLoading, isSyncing, addItem, removeItem, openTable, sendToCashier, sendToKitchen };
+  return { 
+      order, 
+      isLoading, 
+      // Unimos el estado manual o el de la mutación para saber si está cargando
+      isSyncing: isSyncing || addItemMutation.isPending, 
+      addItem: addItemMutation.mutate, // Exponemos la función de mutación
+      removeItem, 
+      openTable, 
+      sendToCashier, 
+      sendToKitchen 
+  };
 };

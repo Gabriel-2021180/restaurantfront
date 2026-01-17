@@ -1,51 +1,62 @@
 import api from '../api/axios';
 
-export default {
+const authService = {
+  // --- LOGIN / LOGOUT ---
   login: async (credentials) => {
-    const { data } = await api.post('/auth/login', credentials);
-    return data;
+    const response = await api.post('/auth/login', credentials);
+    if (response.data.access_token) {
+      localStorage.setItem('token', response.data.access_token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+    }
+    return response.data;
   },
 
-  // --- RECUPERACIÓN DE CONTRASEÑA (NUEVO FLUJO) ---
-  
-  // Paso 1: Iniciar (Backend decide si pide pregunta o manda código)
-  initRecovery: async (email) => {
-    const { data } = await api.post('/auth/forgot-password/init', { email });
-    return data; 
-    // Retorna: { required_security_question: boolean, question?: string, message: string }
+  logout: () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
   },
 
-  // Paso 2: Verificar Pregunta (Solo si required_security_question fue true)
-  verifySecurityQuestion: async (email, answer) => {
-    const { data } = await api.post('/auth/forgot-password/verify', { email, answer });
-    return data; 
+  getCurrentUser: () => {
+    const userStr = localStorage.getItem('user');
+    return userStr ? JSON.parse(userStr) : null;
   },
 
-  // Paso 3: Resetear Final (Para todos)
-  resetPassword: async ({ email, code, newPassword }) => {
-    // OJO: Mapeamos newPassword a new_password como pide tu backend
-    const payload = { 
-        email, 
-        code, 
-        new_password: newPassword 
-    };
-    const { data } = await api.post('/auth/forgot-password/reset', payload);
-    return data;
-  },
   getProfile: async () => {
-    const { data } = await api.get('/auth/profile'); // Ruta para obtener datos frescos del usuario
-    return data;
+    const response = await api.get(`/auth/profile?_t=${new Date().getTime()}`);
+    if (response.data) {
+        localStorage.setItem('user', JSON.stringify(response.data));
+    }
+    return response.data;
   },
 
-  setupSecurityQuestion: async (payload) => {
-    // payload: { question, answer, current_password }
-    const { data } = await api.patch('/auth/security-question', payload);
-    return data;
+  setupSecurityQuestion: async (data) => {
+      const response = await api.patch('/auth/security-question', data);
+      return response.data;
   },
-  
-  verifySecurityAnswer: async (answer) => {
-      // Para validar antes de acciones críticas si es necesario
-      const { data } = await api.post('/auth/verify-security', { answer });
-      return data;
+
+  // 🔥 MÉTODOS FALTANTES AGREGADOS (Para el Olvidé mi Contraseña) 🔥
+
+  // 1. Iniciar flujo (Envía correo o pide pregunta)
+  initRecovery: async (email) => {
+    const response = await api.post('/auth/forgot-password/init', { email });
+    return response.data;
+  },
+
+  // 2. Verificar respuesta de seguridad (Si es Admin)
+  verifySecurityQuestion: async (email, answer) => {
+    const response = await api.post('/auth/forgot-password/verify', { email, answer });
+    return response.data;
+  },
+
+  // 3. Resetear contraseña final
+  resetPassword: async ({ email, code, newPassword }) => {
+    const response = await api.post('/auth/forgot-password/reset', {
+      email,
+      code,
+      new_password: newPassword // Mapeamos al nombre que espera el DTO del Backend
+    });
+    return response.data;
   }
 };
+
+export default authService;

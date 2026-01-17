@@ -56,13 +56,11 @@ const TipsPage = () => {
     try {
         const orders = await userService.getCompletedOrders();
         
-        const myOrders = Array.isArray(orders) 
-            ? orders.filter(o => o.waiter && o.waiter.id === user.id) 
-            : [];
-
-        setPendingOrders(myOrders);
+        setPendingOrders(Array.isArray(orders) ? orders : []);
+        
     } catch (e) { 
         console.error(t('tipsPage.errorLoadingPending'), e); 
+        setPendingOrders([]);
     }
   };
 

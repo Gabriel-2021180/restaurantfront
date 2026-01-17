@@ -70,18 +70,19 @@ const UserProfile = () => {
       try {
           // PASO FINAL: VERIFICAR CÓDIGO
           if (emailMode === 'verify') {
-             const updatedUser = await userService.verifyEmailChange(verificationCode);
+             // 1. Backend confirma y guarda en BD
+             await userService.verifyEmailChange(verificationCode);
               
-             updateUser(updatedUser);
+             updateUser({ ...user, email: newEmail }); 
 
-              Swal.fire(
-                  t('profile.emailChangeSuccessTitle'), 
-                  t('profile.emailChangeSuccessText'), 
-                  'success'
-              );
-              setIsEmailModalOpen(false);
-              resetEmailFlow();
-              return;
+            Swal.fire(
+                t('profile.emailChangeSuccessTitle'), 
+                t('profile.emailChangeSuccessText'), 
+                'success'
+            );
+            setIsEmailModalOpen(false);
+            resetEmailFlow();
+            return;
           }
 
           // PASO 1: SOLICITAR CAMBIO (Standard o Lost Access)
@@ -91,6 +92,8 @@ const UserProfile = () => {
               security_answer: emailMode === 'lost_access' ? securityAnswer : undefined
           };
           const response = await userService.requestEmailChange(payload);
+
+          
 
           if (response.step === 'verify_code') {
               window.location.reload();

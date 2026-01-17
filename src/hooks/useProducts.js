@@ -1,52 +1,59 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import productService from '../services/productService';
 import Swal from 'sweetalert2';
+import { useSocket } from '../context/SocketContext';
+import { useAuth } from '../context/AuthContext'; 
+import { useEffect } from 'react';
 
 export const useProducts = () => {
   const queryClient = useQueryClient();
+  const { socket } = useSocket();
+  const { hasRole } = useAuth(); 
 
-  // 1. OBTENER PRODUCTOS ACTIVOS
+  const isAdmin = hasRole(['admin', 'super-admin']);
+
   const productsQuery = useQuery({
     queryKey: ['products'],
     queryFn: productService.getAll,
-    retry: false, // <--- IMPORTANTE: Si falla, no insistas (evita el lag)
+    retry: false,
     refetchOnWindowFocus: false,
   });
 
-  // 2. OBTENER PAPELERA (CORREGIDO)
   const trashQuery = useQuery({
     queryKey: ['products-trash'],
     queryFn: productService.getTrash,
-    retry: false, // <--- IMPORTANTE: Si da 404, se detiene y no congela la PC
+    retry: false,
     refetchOnWindowFocus: false,
-    // Opcional: Podrías habilitarlo solo si estás en la vista de papelera, 
-    // pero con retry: false es suficiente para arreglar el lag.
+    enabled: !!isAdmin, 
   });
 
-  const handleError = (error) => {
-    console.error("Error en productos:", error);
-    // Swal.fire(...) // Opcional: Comenta esto si es muy molesto
-  };
+  useEffect(() => {
+      if (!socket) return;
+      const handleProductChange = (data) => {
+          queryClient.invalidateQueries(['products']);
+          if (isAdmin) queryClient.invalidateQueries(['products-trash']);
+      };
+      socket.on('product_status_changed', handleProductChange);
+      return () => socket.off('product_status_changed', handleProductChange);
+  }, [socket, queryClient, isAdmin]);
 
   const createMutation = useMutation({
     mutationFn: productService.create,
     onSuccess: () => {
       queryClient.invalidateQueries(['products']);
-      Swal.fire('Creado', 'Producto agregado al menú', 'success');
+      Swal.fire('Creado', 'Producto agregado.', 'success');
     },
     onError: (error) => {
-      console.error(error);
-      const msg = error.response?.data?.message || 'Error al crear producto';
-      // Mostramos el error real del backend para que sepas qué falta
-      Swal.fire('Error de Validación', Array.isArray(msg) ? msg.join(', ') : msg, 'error');
+      const msg = error.response?.data?.message || 'Error al crear';
+      Swal.fire('Error', Array.isArray(msg) ? msg.join(', ') : msg, 'error');
     }
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => productService.update({ id, formData: data }), // Ojo aquí con el nombre del param
+    mutationFn: ({ id, data }) => productService.update({ id, formData: data }), 
     onSuccess: () => {
       queryClient.invalidateQueries(['products']);
-      Swal.fire('Actualizado', 'Producto modificado', 'success');
+      Swal.fire('Actualizado', 'Producto modificado.', 'success');
     },
     onError: (error) => {
       const msg = error.response?.data?.message || 'Error al actualizar';
@@ -54,17 +61,42 @@ export const useProducts = () => {
     }
   });
 
-  // ... (Delete y Restore siguen igual)
-  const deleteMutation = useMutation({ mutationFn: productService.delete, onSuccess: () => { queryClient.invalidateQueries(['products']); queryClient.invalidateQueries(['products-trash']); Swal.fire('Borrado', 'Producto movido a papelera', 'success'); }, onError: handleError });
-  const restoreMutation = useMutation({ mutationFn: productService.restore, onSuccess: () => { queryClient.invalidateQueries(['products']); queryClient.invalidateQueries(['products-trash']); Swal.fire('Restaurado', 'Producto activo de nuevo', 'success'); }, onError: handleError });
+  const deleteMutation = useMutation({ 
+      mutationFn: productService.delete, 
+      onSuccess: () => { 
+          queryClient.invalidateQueries(['products']); 
+          if(isAdmin) queryClient.invalidateQueries(['products-trash']); 
+          Swal.fire('Borrado', 'Producto movido a papelera.', 'success'); 
+      }, 
+      onError: (error) => {
+          // Capturamos el error elegantemente
+          const msg = error.response?.status === 403 
+            ? 'No tienes permiso para eliminar productos (Backend).' 
+            : (error.response?.data?.message || 'No se pudo eliminar');
+          
+          Swal.fire('Acceso Denegado', msg, 'error');
+      } 
+  });
+
+  const restoreMutation = useMutation({ 
+      mutationFn: productService.restore, 
+      onSuccess: () => { 
+          queryClient.invalidateQueries(['products']); 
+          if(isAdmin) queryClient.invalidateQueries(['products-trash']); 
+          Swal.fire('Restaurado', 'Producto activo.', 'success'); 
+      }, 
+      onError: (error) => Swal.fire('Error', 'No se pudo restaurar.', 'error') 
+  });
 
   return {
     products: productsQuery.data || [],
-    trash: trashQuery.data || [], // Si falla, devuelve array vacío y no rompe nada
-    isLoading: productsQuery.isLoading, // Ignoramos la carga de la basura para no bloquear
-    createProduct: createMutation.mutateAsync,
-    updateProduct: updateMutation.mutateAsync,
-    deleteProduct: deleteMutation.mutateAsync,
-    restoreProduct: restoreMutation.mutateAsync
+    trash: trashQuery.data || [], 
+    isLoading: productsQuery.isLoading, 
+    
+    // 🔥 CAMBIO CLAVE: Usamos .mutate (seguro) en vez de .mutateAsync (inestable si falla)
+    createProduct: createMutation.mutate, 
+    updateProduct: updateMutation.mutate, 
+    deleteProduct: deleteMutation.mutate, 
+    restoreProduct: restoreMutation.mutate 
   };
 };

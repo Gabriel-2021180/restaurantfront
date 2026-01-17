@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const api = axios.create({
     // Usa la variable de entorno o el puerto 3000 por defecto
-    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1', 
+    baseURL: import.meta.env.VITE_API_URL, 
 });
 
 // --- INTERCEPTOR DE SOLICITUD (REQUEST) ---

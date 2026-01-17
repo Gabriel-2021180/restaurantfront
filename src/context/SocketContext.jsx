@@ -14,7 +14,7 @@ export const SocketProvider = ({ children }) => {
       // 1. Definir URL base (igual que tenías antes)
       const baseURL = import.meta.env.VITE_API_URL 
         ? new URL(import.meta.env.VITE_API_URL).origin 
-        : 'http://localhost:3000';
+        : '';
 
       // 2. Conectar enviando ID y ROL (Lógica nueva)
       const newSocket = io(baseURL, {

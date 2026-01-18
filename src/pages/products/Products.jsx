@@ -8,7 +8,8 @@ import SearchableSelect from '../../components/ui/SearchableSelect';
 import { SocketContext } from '../../context/SocketContext';
 import { 
     Plus, Layers, Search, Pencil, Trash2, RotateCcw, Image as ImageIcon, 
-    Upload, Loader2, ChefHat, Box, Archive, Gift, Package, AlertCircle, CupSoda
+    Upload, Loader2, ChefHat, Box, Archive, Gift, Package, CupSoda,
+    TrendingUp, TrendingDown, DollarSign
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../../context/AuthContext';
@@ -16,11 +17,12 @@ import productService from '../../services/productService';
 
 const Products = () => {
   const { t } = useTranslation();
+  
   const { products, trash, isLoading, createProduct, updateProduct, deleteProduct, restoreProduct } = useProducts();
   const { categories } = useCategories();
   const { supplies } = useInventory(); 
   const { hasRole } = useAuth();
-  const { socket } = useContext(SocketContext); // Mover useContext aquí arriba
+  const { socket } = useContext(SocketContext);
   
   const isAdmin = hasRole(['super-admin', 'admin']);
   
@@ -32,17 +34,16 @@ const Products = () => {
   const [imageFile, setImageFile] = useState(null); 
   const [previewUrl, setPreviewUrl] = useState(null);
 
-  // FORMULARIO
+  // ESTADOS DEL FORMULARIO
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
   
-  // MODOS
+  // 🔥 ESTADOS CLAVE
   const [isCombo, setIsCombo] = useState(false); 
   const [trackStock, setTrackStock] = useState(false); 
-  
-  // DATOS
+
   const [stock, setStock] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
   const [fixedCost, setFixedCost] = useState(''); 
@@ -51,11 +52,13 @@ const Products = () => {
 
   const sourceData = viewMode === 'active' ? products : trash;
 
-  const filteredList = sourceData.filter(product => {
+  const filteredList = useMemo(() => {
+    return sourceData.filter(product => {
       const productName = product.name ? product.name.toLowerCase() : '';
       const search = searchTerm ? searchTerm.toLowerCase() : '';
       return productName.includes(search);
-  });
+    });
+  }, [sourceData, searchTerm]);
 
   const resetForm = () => {
     setName(''); setPrice(''); setDescription(''); setCategoryId('');
@@ -65,52 +68,42 @@ const Products = () => {
     setIngredients([]); setBundleItems([]); 
   };
 
-  const handleOpenCreate = () => { resetForm(); setIsModalOpen(true); };
+  const handleOpenCreate = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
 
   const handleOpenEdit = async (productSummary) => {
+    resetForm();
     setEditingProduct(productSummary);
     setName(productSummary.name || ''); 
     setPrice(productSummary.price);
     setDescription(productSummary.description || '');
-    
-    // Reseteamos visualmente mientras carga lo real
-    setBundleItems([]);
-    setIngredients([]);
-    setFixedCost('');
     setIsModalOpen(true);
 
     try {
         const fullProduct = await productService.getOne(productSummary.id);
-        
-        const catId = fullProduct.category?.id || fullProduct.category_id || '';
-        setCategoryId(catId);
+        setCategoryId(fullProduct.category?.id || fullProduct.category_id || '');
         setPreviewUrl(fullProduct.image_url || null);
-        setImageFile(null);
         
-        const comboStatus = !!fullProduct.is_combo;
-        setIsCombo(comboStatus);
-        const resaleStatus = !!fullProduct.track_stock;
-        setTrackStock(resaleStatus);
+        // Asignación correcta de tipos
+        const isComboBool = !!fullProduct.is_combo;
+        const isTrackStockBool = !!fullProduct.track_stock;
 
-        if (comboStatus) {
+        setIsCombo(isComboBool);
+        // Si es combo, trackStock es irrelevante (false visualmente), si no, lo que venga de BD
+        setTrackStock(isComboBool ? false : isTrackStockBool);
+
+        if (isComboBool) {
             const items = fullProduct.bundleItems || fullProduct.bundle_items || [];
             setBundleItems(items.map(i => ({
                 child_product_id: i.childProduct?.id || i.child_product_id,
                 quantity: i.quantity
             })));
-            
-            const backendIngredients = fullProduct.recipeIngredients || fullProduct.ingredients || [];
-            setIngredients(backendIngredients.map(i => ({
-                supply_id: i.supply?.id || i.supply_id, 
-                quantity: parseFloat(i.quantity) 
-            })));
-
             setFixedCost(fullProduct.fixed_cost || ''); 
-
-        } else if (resaleStatus) {
+        } else if (isTrackStockBool) {
             setStock(fullProduct.stock || 0);
             setPurchasePrice(fullProduct.purchase_price || 0);
-            setFixedCost('');
         } else {
             setFixedCost(fullProduct.fixed_cost || 0);
             const backendIngredients = fullProduct.recipeIngredients || fullProduct.ingredients || [];
@@ -118,111 +111,119 @@ const Products = () => {
                 supply_id: i.supply?.id || i.supply_id, 
                 quantity: parseFloat(i.quantity) 
             })));
-            setStock(''); setPurchasePrice('');
         }
     } catch (error) {
         console.error("Error cargando detalles", error);
-        Swal.fire('Error', 'No se pudieron cargar los detalles completos', 'error');
     }
   };
 
   const addIngredientRow = () => setIngredients([...ingredients, { supply_id: '', quantity: '' }]);
-  const removeIngredientRow = (index) => { const newIng = [...ingredients]; newIng.splice(index, 1); setIngredients(newIng); };
-  const updateIngredient = (index, field, value) => { const newIng = [...ingredients]; newIng[index][field] = value; setIngredients(newIng); };
-
-  const addBundleRow = () => setBundleItems([...bundleItems, { child_product_id: '', quantity: 1 }]);
-  const removeBundleRow = (index) => { const newB = [...bundleItems]; newB.splice(index, 1); setBundleItems(newB); };
-  const updateBundle = (index, field, value) => { const newB = [...bundleItems]; newB[index][field] = value; setBundleItems(newB); };
-
-  const getIngredientCostInfo = (ing) => {
-      if (!ing.supply_id || !ing.quantity) return { total: 0 };
-      const supply = supplies.find(s => s.id === ing.supply_id);
-      return { total: supply ? parseFloat(ing.quantity) * supply.cost_per_unit : 0 };
+  const removeIngredientRow = (index) => setIngredients(ingredients.filter((_, i) => i !== index));
+  const updateIngredient = (index, field, value) => {
+    const newIng = [...ingredients];
+    newIng[index][field] = value;
+    setIngredients(newIng);
   };
 
+  const addBundleRow = () => setBundleItems([...bundleItems, { child_product_id: '', quantity: 1 }]);
+  const removeBundleRow = (index) => setBundleItems(bundleItems.filter((_, i) => i !== index));
+  const updateBundle = (index, field, value) => {
+    const newB = [...bundleItems];
+    newB[index][field] = value;
+    setBundleItems(newB);
+  };
+
+  // 💰 CÁLCULO DE COSTOS Y RENTABILIDAD
   const totalCost = useMemo(() => {
       let total = 0;
-      total += ingredients.reduce((acc, ing) => acc + getIngredientCostInfo(ing).total, 0);
-      total += parseFloat(fixedCost) || 0;
       
+      // 1. Costo de Ingredientes (Si es preparado)
+      if (!isCombo && !trackStock) {
+        ingredients.forEach(ing => {
+            if (ing.supply_id && ing.quantity) {
+                const supply = supplies.find(s => s.id === ing.supply_id);
+                total += supply ? parseFloat(ing.quantity) * supply.cost_per_unit : 0;
+            }
+        });
+        total += parseFloat(fixedCost) || 0;
+      }
+
+      // 2. Costo de Compra (Si es reventa)
+      if (!isCombo && trackStock) {
+          total = parseFloat(purchasePrice) || 0;
+      }
+
+      // 3. Costo de Combo (Suma de costos de hijos o precios base)
       if (isCombo) {
           bundleItems.forEach(item => {
               const prod = products.find(p => p.id === item.child_product_id);
+              // Estimación: Costo del hijo o 60% de su precio venta si no hay dato
               if (prod) {
-                  const itemCost = prod.track_stock ? prod.purchase_price : (prod.price * 0.6);
-                  total += (itemCost || 0) * (item.quantity || 0);
+                 const childCost = parseFloat(prod.total_cost) || (prod.price * 0.6); 
+                 total += childCost * (item.quantity || 0);
               }
           });
+          total += parseFloat(fixedCost) || 0;
       }
       return total;
-  }, [ingredients, fixedCost, supplies, bundleItems, products, isCombo]);
+  }, [ingredients, fixedCost, supplies, bundleItems, products, isCombo, trackStock, purchasePrice]);
+
+  // Cálculos finales para la UI
+  const estimatedProfit = (parseFloat(price) || 0) - totalCost;
+  const profitMargin = (parseFloat(price) || 0) > 0 ? (estimatedProfit / parseFloat(price)) * 100 : 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-        const cleanIngredients = ingredients
-            .filter(i => i.supply_id && i.quantity > 0)
-            .map(i => ({ supply_id: i.supply_id, quantity: parseFloat(i.quantity) }));
+        const payload = new FormData();
+        
+        // Datos Básicos
+        payload.append('name', name);
+        payload.append('price', String(price));
+        payload.append('description', description || '');
+        if (imageFile) payload.append('file', imageFile);
 
-        const cleanBundle = bundleItems
-            .filter(i => i.child_product_id && i.quantity > 0)
-            .map(i => ({ child_product_id: i.child_product_id, quantity: parseInt(i.quantity) }));
+        // 🔥🔥🔥 LÓGICA CRÍTICA BLINDADA 🔥🔥🔥
+        // Si es false, NO LO ENVIAMOS. El backend lo tomará como undefined (falso).
 
-        if (isCombo && cleanBundle.length === 0) throw new Error(t('products.comboMustHaveProducts'));
-        if (!isCombo && !categoryId) throw new Error(t('products.mustSelectCategory'));
+        if (isCombo) {
+            // --- CASO COMBO ---
+            payload.append('is_combo', 'true'); // Solo enviamos si es true
+            
+            // Validar Bundle
+            const cleanBundle = bundleItems
+                .filter(i => i.child_product_id && i.quantity > 0)
+                .map(i => ({ child_product_id: i.child_product_id, quantity: parseInt(i.quantity) }));
+            if (cleanBundle.length === 0) throw new Error(t('products.comboMustHaveProducts'));
+            
+            payload.append('bundle_items', JSON.stringify(cleanBundle));
+            payload.append('fixed_cost', String(fixedCost || 0));
 
-        let payload;
-
-        if (imageFile) {
-            payload = new FormData();
-            payload.append('name', name);
-            payload.append('price', price);
-            payload.append('description', description || '');
-            payload.append('is_combo', isCombo ? 'true' : 'false');
-            payload.append('track_stock', (isCombo ? false : trackStock) ? 'true' : 'false');
-            payload.append('file', imageFile);
-
-            if (isCombo) {
-                payload.append('bundle_items', JSON.stringify(cleanBundle));
-                payload.append('fixed_cost', fixedCost || 0); 
-                if (cleanIngredients.length > 0) payload.append('ingredients', JSON.stringify(cleanIngredients));
-            } else {
-                payload.append('category_id', categoryId);
-                if (trackStock) {
-                    payload.append('stock', stock || 0);
-                    payload.append('purchase_price', purchasePrice || 0);
-                } else {
-                    payload.append('fixed_cost', fixedCost || 0);
-                    payload.append('ingredients', JSON.stringify(cleanIngredients));
-                }
-            }
         } else {
-            payload = {
-                name,
-                price: parseFloat(price),
-                description,
-                is_combo: isCombo,
-                track_stock: isCombo ? false : trackStock,
-            };
+            // --- CASO PRODUCTO NORMAL (NO ENVIAMOS is_combo) ---
+            
+            if (!categoryId) throw new Error(t('products.mustSelectCategory'));
+            payload.append('category_id', categoryId);
 
-            if (isCombo) {
-                payload.bundle_items = cleanBundle;
-                payload.category_id = null;
-                payload.fixed_cost = parseFloat(fixedCost) || 0;
-                if (cleanIngredients.length > 0) payload.ingredients = cleanIngredients;
+            if (trackStock) {
+                // ES REVENTA (Kiosco)
+                payload.append('track_stock', 'true'); // Solo enviamos si es true
+                payload.append('stock', String(stock || 0));
+                payload.append('purchase_price', String(purchasePrice || 0));
             } else {
-                payload.category_id = categoryId;
-                if (trackStock) {
-                    payload.stock = parseInt(stock) || 0;
-                    payload.purchase_price = parseFloat(purchasePrice) || 0;
-                } else {
-                    payload.fixed_cost = parseFloat(fixedCost) || 0;
-                    payload.ingredients = cleanIngredients;
-                }
+                // ES PREPARADO (Cocina). NO ENVIAMOS track_stock.
+                
+                const cleanIngredients = ingredients
+                    .filter(i => i.supply_id && i.quantity > 0)
+                    .map(i => ({ supply_id: i.supply_id, quantity: parseFloat(i.quantity) }));
+                
+                payload.append('ingredients', JSON.stringify(cleanIngredients));
+                payload.append('fixed_cost', String(fixedCost || 0));
             }
         }
+        // 🔥🔥🔥 FIN DE LÓGICA BLINDADA 🔥🔥🔥
 
         if (editingProduct) {
             await updateProduct({ id: editingProduct.id, data: payload });
@@ -233,56 +234,24 @@ const Products = () => {
         setIsModalOpen(false);
         resetForm(); 
         Swal.fire(t('products.success'), isCombo ? t('products.comboSaved') : t('products.productSaved'), 'success');
-
     } catch (error) {
-        console.error(t('products.errorSaving'), error);
-        let msg = t('products.unknownError');
-        if (error.response?.data?.message) {
-            const m = error.response.data.message;
-            msg = Array.isArray(m) ? m.join('<br>') : m;
-        } else if (error.message) {
-            msg = error.message;
-        }
-        Swal.fire({ title: t('products.attention'), html: msg, icon: 'warning' });
+        Swal.fire({ title: t('products.attention'), text: error.message, icon: 'warning' });
     } finally {
         setIsSubmitting(false);
     }
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImageFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-    }
-  };
-
-  const handleDelete = (id) => { Swal.fire({ title: t('products.deleteConfirmation'), icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: t('products.yes') }).then((r) => { if (r.isConfirmed) deleteProduct(id); }); };
-  const handleRestore = (id) => { Swal.fire({ title: t('products.restoreConfirmation'), icon: 'question', showCancelButton: true, confirmButtonText: t('products.yes') }).then((r) => { if (r.isConfirmed) restoreProduct(id); }); };
-  
-  const getModalTitle = () => {
-      if (!editingProduct) return <><Plus size={18}/> {t('products.createNew')}</>;
-      return isCombo ? <><Gift size={18}/> {t('products.editCombo')}</> : <><Pencil size={18}/> {t('products.editProduct')}</>;
-  };
-
-  // 🔥 1. CORRECCIÓN IMPORTANTE: useEffect del Socket movido ANTES del if(isLoading)
   useEffect(() => {
     if (!socket) return;
-    const handleStockUpdate = (notif) => {
-        if (notif.title.includes('Agotado') || notif.title.includes('Stock')) {
-            window.location.reload(); 
-        }
-    };
+    const handleStockUpdate = () => productService.getAll();
     socket.on('notification', handleStockUpdate);
     return () => socket.off('notification', handleStockUpdate);
   }, [socket]);
 
-  // 🔥 2. isLoading ahora está AL FINAL de todos los hooks
   if (isLoading) return <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12"/></div>;
 
   return (
     <div className="space-y-6">
-      
       {/* HEADER */}
       <div className="flex flex-col xl:flex-row justify-between items-center gap-4 bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
@@ -309,7 +278,6 @@ const Products = () => {
         </div>
       </div>
 
-      {/* TABLA */}
       <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -334,7 +302,7 @@ const Products = () => {
                             )}
                             <div>
                                 <p className="font-bold text-gray-800 dark:text-gray-200">{prod.name}</p>
-                                <p className="text-xs text-gray-500">{prod.description?.substring(0,30)}...</p>
+                                <p className="text-xs text-gray-500 line-clamp-1">{prod.description}</p>
                             </div>
                         </div>
                     </td>
@@ -357,10 +325,10 @@ const Products = () => {
                             {viewMode === 'active' ? (
                                 <>
                                 <button onClick={() => handleOpenEdit(prod)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Pencil size={18} /></button>
-                                <button onClick={() => handleDelete(prod.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
+                                <button onClick={() => deleteProduct(prod.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
                                 </>
                             ) : (
-                                <button onClick={() => handleRestore(prod.id)} className="text-green-600 hover:bg-green-50 p-2 rounded-lg"><RotateCcw size={16}/></button>
+                                <button onClick={() => restoreProduct(prod.id)} className="text-green-600 hover:bg-green-50 p-2 rounded-lg flex items-center gap-1 font-bold text-xs"><RotateCcw size={16}/></button>
                             )}
                             </div>
                         </td>
@@ -372,46 +340,45 @@ const Products = () => {
         </div>
       </div>
 
-      {/* MODAL (Código del modal idéntico al anterior) */}
       {isAdmin && (
-          <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
+          <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingProduct ? t('products.editProduct') : t('products.newProduct')}>
             <form onSubmit={handleSubmit} className="space-y-4">
                 
-                <div className={`flex items-center gap-3 p-3 rounded-xl border ${isCombo ? 'bg-purple-50 border-purple-100' : 'bg-gray-50 border-gray-200'} transition-all`}>
+                {/* SELECTOR PRINCIPAL: COMBO O NORMAL */}
+                <div className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${isCombo ? 'bg-purple-50 border-purple-100' : 'bg-gray-50 border-gray-200'}`}>
                     <input 
                         type="checkbox" 
                         id="isComboCheck" 
                         checked={isCombo} 
-                        onChange={e => { setIsCombo(e.target.checked); if (e.target.checked) setTrackStock(false); }} 
-                        className={`w-5 h-5 text-purple-600 rounded cursor-pointer ${editingProduct ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        onChange={e => { 
+                            const val = e.target.checked;
+                            setIsCombo(val); 
+                            // IMPORTANTE: Si es combo, desactivamos reventa
+                            if (val) setTrackStock(false); 
+                        }} 
+                        className={`w-5 h-5 text-purple-600 rounded cursor-pointer ${editingProduct ? 'opacity-50' : ''}`}
                         disabled={!!editingProduct}
                     />
-                    <label htmlFor="isComboCheck" className={`text-sm font-bold text-gray-800 dark:text-white flex-1 ${editingProduct ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                    <label htmlFor="isComboCheck" className="text-sm font-bold text-gray-800 dark:text-white flex-1 cursor-pointer">
                         {isCombo ? t('products.isComboPromotion') : t('products.isStandardProduct')}
                     </label>
                     {isCombo ? <Gift className="text-purple-500"/> : <Package className="text-gray-400"/>}
                 </div>
 
-                {editingProduct && (
-                    <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded-lg border border-amber-100">
-                        <AlertCircle size={16}/>
-                        <span>{t('products.changeProductTypeWarning')}</span>
-                    </div>
-                )}
-
+                {/* DATOS BÁSICOS */}
                 <div className="flex gap-4">
-                    <div className="w-24 h-24 shrink-0 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center border-2 border-dashed border-gray-300 relative overflow-hidden cursor-pointer hover:border-primary group">
-                        {previewUrl ? <img src={previewUrl} className="w-full h-full object-cover" /> : <Upload className="text-gray-400 group-hover:text-primary"/>}
-                        <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileChange} />
+                    <div className="w-24 h-24 shrink-0 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center border-2 border-dashed border-gray-300 relative overflow-hidden group">
+                        {previewUrl ? <img src={previewUrl} className="w-full h-full object-cover" /> : <Upload className="text-gray-400"/>}
+                        <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => { const f = e.target.files[0]; if(f){ setImageFile(f); setPreviewUrl(URL.createObjectURL(f)); } }} />
                     </div>
                     <div className="flex-1 space-y-3">
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase">{t('products.name')}</label>
-                            <input type="text" required className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={name} onChange={e=>setName(e.target.value)} placeholder={isCombo ? t('products.comboNamePlaceholder') : t('products.productNamePlaceholder')}/>
+                            <input type="text" required className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={name} onChange={e=>setName(e.target.value)}/>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="text-xs font-bold text-gray-500 uppercase">{t('products.price')} ({t('common.currency')})</label>
+                                <label className="text-xs font-bold text-gray-500 uppercase">{t('products.price')}</label>
                                 <input type="number" step="0.50" required className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white font-bold" value={price} onChange={e=>setPrice(e.target.value)}/>
                             </div>
                             {!isCombo && (
@@ -429,106 +396,91 @@ const Products = () => {
                     <textarea rows="2" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white resize-none" value={description} onChange={e=>setDescription(e.target.value)}></textarea>
                 </div>
 
+                {/* SELECTOR TIPO: COCINA vs REVENTA */}
                 {!isCombo && (
-                    <>
-                        <div className="bg-gray-50 dark:bg-gray-800 p-1 rounded-xl flex mb-2">
-                            <button 
-                                type="button" 
-                                onClick={() => setTrackStock(false)} 
-                                disabled={!!editingProduct}
-                                className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-2 ${!trackStock ? 'bg-white shadow text-orange-600' : 'text-gray-400'} ${editingProduct ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <ChefHat size={14}/> {t('products.preparedKitchen')}
-                            </button>
-                            <button 
-                                type="button" 
-                                onClick={() => setTrackStock(true)} 
-                                disabled={!!editingProduct}
-                                className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-2 ${trackStock ? 'bg-white shadow text-blue-600' : 'text-gray-400'} ${editingProduct ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <CupSoda size={14}/> {t('products.resaleKiosk')}
-                            </button>
-                        </div>
-                        {editingProduct && (
-                            <div className="text-xs text-gray-400 text-center mb-4 italic">
-                                {t('products.managementTypePermanent')}
-                            </div>
-                        )}
-                    </>
+                    <div className="bg-gray-50 dark:bg-gray-800 p-1 rounded-xl flex">
+                        <button type="button" onClick={() => setTrackStock(false)} disabled={!!editingProduct} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${!trackStock ? 'bg-white shadow text-orange-600 ring-1 ring-orange-100' : 'text-gray-400 hover:text-gray-600'}`}>
+                            <ChefHat className="inline mr-2" size={14}/> {t('products.preparedKitchen')}
+                        </button>
+                        <button type="button" onClick={() => setTrackStock(true)} disabled={!!editingProduct} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${trackStock ? 'bg-white shadow text-blue-600 ring-1 ring-blue-100' : 'text-gray-400 hover:text-gray-600'}`}>
+                            <CupSoda className="inline mr-2" size={14}/> {t('products.resaleKiosk')}
+                        </button>
+                    </div>
                 )}
 
+                {/* FORMULARIOS ESPECÍFICOS SEGÚN TIPO */}
                 {isCombo ? (
-                    <div className="space-y-4">
-                        <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl border border-purple-100 dark:border-purple-800 space-y-3">
-                            <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300 mb-1"><Package size={18} /> <span className="font-bold text-sm">{t('products.packContent')}</span></div>
-                            {bundleItems.map((item, index) => (
-                                <div key={index} className="flex gap-2 mb-2 items-center">
-                                    <div className="flex-1"><SearchableSelect options={products.filter(p => !p.is_combo)} value={item.child_product_id} onChange={(val) => updateBundle(index, 'child_product_id', val)} placeholder={t('products.productPlaceholder')}/></div>
-                                    <input type="number" placeholder={t('products.quantityShort')} className="w-20 p-2 border rounded-lg text-sm text-center font-bold dark:bg-gray-800 dark:text-white" value={item.quantity} onChange={(e) => updateBundle(index, 'quantity', e.target.value)}/>
-                                    <button type="button" onClick={() => removeBundleRow(index)} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
-                                </div>
-                            ))}
-                            <button type="button" onClick={addBundleRow} className="text-xs font-bold text-purple-600 hover:underline flex items-center gap-1 mt-2"><Plus size={14}/> {t('products.addProduct')}</button>
-                        </div>
-                        <div className="p-4 bg-orange-50 dark:bg-orange-900/10 rounded-xl border border-orange-100 dark:border-orange-800 space-y-3">
-                            <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300 mb-1"><ChefHat size={18} /> <span className="font-bold text-sm">{t('products.kitchenIngredients')}</span></div>
-                            {ingredients.map((ing, index) => (
-                                <div key={index} className="flex gap-2 mb-2 items-center">
-                                    <div className="flex-1"><SearchableSelect options={supplies} value={ing.supply_id} onChange={(val) => updateIngredient(index, 'supply_id', val)} placeholder={t('products.supplyPlaceholder')} /></div>
-                                    <input type="number" placeholder={t('products.kgShort')} className="w-20 p-2 border rounded-lg text-sm text-center dark:bg-gray-800 dark:text-white" value={ing.quantity} onChange={(e) => updateIngredient(index, 'quantity', e.target.value)} />
-                                    <button type="button" onClick={() => removeIngredientRow(index)} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
-                                </div>
-                            ))}
-                            <button type="button" onClick={addIngredientRow} className="text-xs font-bold text-orange-600 hover:underline flex items-center gap-1 mt-2"><Plus size={14}/> {t('products.addIngredient')}</button>
-                        </div>
-                        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-                            <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2">
-                                {t('products.fixedCostWaste')} <span className="text-[10px] font-normal text-gray-400">{t('products.packagingOilGas')}</span>
-                            </label>
-                            <input 
-                                type="number" 
-                                step="0.10" 
-                                className="input-base w-full p-2 mt-1 border rounded-lg dark:bg-gray-700 dark:text-white font-bold" 
-                                value={fixedCost} 
-                                onChange={e=>setFixedCost(e.target.value)}
-                                placeholder="0.00"
-                            />
-                        </div>
+                    // MODO COMBO
+                    <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl border border-purple-100 space-y-3">
+                        <div className="flex items-center gap-2 text-purple-700 font-bold text-sm"><Package size={18} /> {t('products.packContent')}</div>
+                        {bundleItems.map((item, index) => (
+                            <div key={index} className="flex gap-2 items-center">
+                                <div className="flex-1"><SearchableSelect options={products.filter(p => !p.is_combo)} value={item.child_product_id} onChange={(val) => updateBundle(index, 'child_product_id', val)} placeholder={t('products.productPlaceholder')}/></div>
+                                <input type="number" className="w-20 p-2 border rounded-lg text-center font-bold dark:bg-gray-800" value={item.quantity} onChange={(e) => updateBundle(index, 'quantity', e.target.value)}/>
+                                <button type="button" onClick={() => removeBundleRow(index)} className="text-red-400"><Trash2 size={16}/></button>
+                            </div>
+                        ))}
+                        <button type="button" onClick={addBundleRow} className="text-xs font-bold text-purple-600 flex items-center gap-1"><Plus size={14}/> {t('products.addProduct')}</button>
                     </div>
                 ) : trackStock ? (
-                    <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-800 space-y-3">
-                        <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 mb-1"><Box size={18} /> <span className="font-bold text-sm">{t('products.stockControl')}</span></div>
+                    // MODO REVENTA
+                    <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 space-y-3">
+                        <div className="flex items-center gap-2 text-blue-700 font-bold text-sm"><Box size={18} /> {t('products.stockControl')}</div>
                         <div className="grid grid-cols-2 gap-4">
-                            <div><label className="text-xs font-bold text-gray-500 uppercase">{t('products.initialStock')}</label><input type="number" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={stock} onChange={e=>setStock(e.target.value)}/></div>
-                            <div><label className="text-xs font-bold text-gray-500 uppercase">{t('products.purchaseCost')}</label><input type="number" step="0.50" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={purchasePrice} onChange={e=>setPurchasePrice(e.target.value)}/></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase">{t('products.initialStock')}</label><input type="number" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800" value={stock} onChange={e=>setStock(e.target.value)}/></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase">{t('products.purchaseCost')}</label><input type="number" step="0.50" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800" value={purchasePrice} onChange={e=>setPurchasePrice(e.target.value)}/></div>
                         </div>
                     </div>
                 ) : (
-                    <div className="p-4 bg-orange-50 dark:bg-orange-900/10 rounded-xl border border-orange-100 dark:border-orange-800 space-y-3">
-                         <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300 mb-1"><ChefHat size={18} /> <span className="font-bold text-sm">{t('products.recipeEscandallo')}</span></div>
-                        <div><label className="text-xs font-bold text-gray-500 uppercase">{t('products.extraFixedCost')}</label><input type="number" step="0.10" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white" value={fixedCost} onChange={e=>setFixedCost(e.target.value)}/></div>
+                    // MODO PREPARADO (Receta)
+                    <div className="p-4 bg-orange-50 dark:bg-orange-900/10 rounded-xl border border-orange-100 space-y-3">
+                        <div className="flex items-center gap-2 text-orange-700 font-bold text-sm"><ChefHat size={18} /> {t('products.recipeEscandallo')}</div>
+                        <label className="text-xs font-bold text-gray-500 uppercase">{t('products.extraFixedCost')}</label>
+                        <input type="number" step="0.10" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800" value={fixedCost} onChange={e=>setFixedCost(e.target.value)}/>
                         <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">{t('products.ingredients')}</label>
                             {ingredients.map((ing, index) => (
                                 <div key={index} className="flex gap-2 mb-2 items-center">
                                     <div className="flex-1"><SearchableSelect options={supplies} value={ing.supply_id} onChange={(val) => updateIngredient(index, 'supply_id', val)} placeholder={t('products.supplyPlaceholder')} /></div>
-                                    <input type="number" placeholder={t('products.kgShort')} className="w-20 p-2 border rounded-lg text-sm text-center dark:bg-gray-800 dark:text-white" value={ing.quantity} onChange={(e) => updateIngredient(index, 'quantity', e.target.value)} />
-                                    <button type="button" onClick={() => removeIngredientRow(index)} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+                                    <input type="number" placeholder={t('products.kgShort')} className="w-20 p-2 border rounded-lg text-center dark:bg-gray-800" value={ing.quantity} onChange={(e) => updateIngredient(index, 'quantity', e.target.value)} />
+                                    <button type="button" onClick={() => removeIngredientRow(index)} className="text-red-400"><Trash2 size={16}/></button>
                                 </div>
                             ))}
-                            <button type="button" onClick={addIngredientRow} className="text-xs font-bold text-primary hover:underline flex items-center gap-1 mt-2"><Plus size={14}/> {t('products.addIngredient')}</button>
+                            <button type="button" onClick={addIngredientRow} className="text-xs font-bold text-primary flex items-center gap-1"><Plus size={14}/> {t('products.addIngredient')}</button>
                         </div>
                     </div>
                 )}
 
-                <div className="mt-4 pt-3 border-t border-dashed border-gray-300 flex justify-between items-center text-sm">
-                    <div className="text-gray-500"><p>{t('products.estimatedCost')}: <span className="font-bold">{totalCost.toFixed(2)} {t('common.currency')}</span></p></div>
-                    <div className={`px-3 py-1 rounded-lg font-bold ${((price - totalCost) > 0) ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{t('products.margin')}: {((price - totalCost)).toFixed(2)} {t('common.currency')}</div>
+                {/* 💰 TARJETA DE RENTABILIDAD */}
+                <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
+                        <DollarSign size={14}/> Análisis de Rentabilidad
+                    </h3>
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                        <div className="bg-white dark:bg-gray-700 p-2 rounded-lg shadow-sm">
+                            <div className="text-xs text-gray-500">Costo Total</div>
+                            <div className="font-bold text-red-500">{totalCost.toFixed(2)} Bs</div>
+                        </div>
+                        <div className="bg-white dark:bg-gray-700 p-2 rounded-lg shadow-sm">
+                            <div className="text-xs text-gray-500">Ganancia Neta</div>
+                            <div className={`font-bold ${estimatedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {estimatedProfit.toFixed(2)} Bs
+                            </div>
+                        </div>
+                        <div className="bg-white dark:bg-gray-700 p-2 rounded-lg shadow-sm">
+                            <div className="text-xs text-gray-500">Margen</div>
+                            <div className={`font-bold flex items-center justify-center gap-1 ${profitMargin >= 30 ? 'text-green-600' : profitMargin > 0 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                {profitMargin.toFixed(1)}% 
+                                {profitMargin >= 0 ? <TrendingUp size={14}/> : <TrendingDown size={14}/>}
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="pt-2 flex gap-3">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-gray-100 font-bold rounded-xl dark:bg-gray-700 dark:text-white">{t('products.cancel')}</button>
-                    <button type="submit" disabled={isSubmitting} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg hover:bg-primary-dark transition">{isSubmitting ? <Loader2 className="animate-spin mx-auto"/> : t('products.save')}</button>
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-gray-100 font-bold rounded-xl dark:bg-gray-700 dark:text-white hover:bg-gray-200 transition">{t('products.cancel')}</button>
+                    <button type="submit" disabled={isSubmitting} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg hover:bg-primary-dark transition-all active:scale-95 disabled:opacity-50">
+                        {isSubmitting ? <Loader2 className="animate-spin mx-auto"/> : t('products.save')}
+                    </button>
                 </div>
             </form>
           </Modal>

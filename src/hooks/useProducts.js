@@ -41,7 +41,6 @@ export const useProducts = () => {
     mutationFn: productService.create,
     onSuccess: () => {
       queryClient.invalidateQueries(['products']);
-      Swal.fire('Creado', 'Producto agregado.', 'success');
     },
     onError: (error) => {
       const msg = error.response?.data?.message || 'Error al crear';
@@ -53,7 +52,6 @@ export const useProducts = () => {
     mutationFn: ({ id, data }) => productService.update({ id, formData: data }), 
     onSuccess: () => {
       queryClient.invalidateQueries(['products']);
-      Swal.fire('Actualizado', 'Producto modificado.', 'success');
     },
     onError: (error) => {
       const msg = error.response?.data?.message || 'Error al actualizar';
@@ -93,9 +91,8 @@ export const useProducts = () => {
     trash: trashQuery.data || [], 
     isLoading: productsQuery.isLoading, 
     
-    // 🔥 CAMBIO CLAVE: Usamos .mutate (seguro) en vez de .mutateAsync (inestable si falla)
-    createProduct: createMutation.mutate, 
-    updateProduct: updateMutation.mutate, 
+    createProduct: createMutation.mutateAsync, 
+    updateProduct: updateMutation.mutateAsync, 
     deleteProduct: deleteMutation.mutate, 
     restoreProduct: restoreMutation.mutate 
   };

@@ -9,7 +9,7 @@ import { SocketContext } from '../../context/SocketContext';
 import { 
     Plus, Layers, Search, Pencil, Trash2, RotateCcw, Image as ImageIcon, 
     Upload, Loader2, ChefHat, Box, Archive, Gift, Package, CupSoda,
-    TrendingUp, TrendingDown, DollarSign
+    TrendingUp, TrendingDown, DollarSign, AlertCircle
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../../context/AuthContext';
@@ -86,34 +86,64 @@ const Products = () => {
         setCategoryId(fullProduct.category?.id || fullProduct.category_id || '');
         setPreviewUrl(fullProduct.image_url || null);
         
-        // Asignación correcta de tipos
         const isComboBool = !!fullProduct.is_combo;
         const isTrackStockBool = !!fullProduct.track_stock;
 
+        // 1. Establecer banderas principales
         setIsCombo(isComboBool);
-        // Si es combo, trackStock es irrelevante (false visualmente), si no, lo que venga de BD
         setTrackStock(isComboBool ? false : isTrackStockBool);
 
+        // 2. Cargar Costo Fijo (Común para Combos y Preparados)
+        setFixedCost(fullProduct.fixed_cost || '');
+
+        // 3. 🔥 CARGAR INGREDIENTES (CRÍTICO: Funciona para Combos Y Preparados)
+        // Buscamos recipeIngredients (nombre estándar en backend) o ingredients
+        const backendIngredients = fullProduct.recipeIngredients || fullProduct.ingredients || [];
+        
+        if (backendIngredients.length > 0) {
+            setIngredients(backendIngredients.map(i => ({
+                supply_id: i.supply?.id || i.supply_id, // Soporta objeto populate o ID directo
+                quantity: parseFloat(i.quantity) 
+            })));
+        } else {
+            setIngredients([]);
+        }
+
+        // 4. Lógica Específica
         if (isComboBool) {
+            // Cargar hijos del combo
             const items = fullProduct.bundleItems || fullProduct.bundle_items || [];
             setBundleItems(items.map(i => ({
                 child_product_id: i.childProduct?.id || i.child_product_id,
                 quantity: i.quantity
             })));
-            setFixedCost(fullProduct.fixed_cost || ''); 
         } else if (isTrackStockBool) {
+            // Cargar stock para reventa
             setStock(fullProduct.stock || 0);
             setPurchasePrice(fullProduct.purchase_price || 0);
-        } else {
-            setFixedCost(fullProduct.fixed_cost || 0);
-            const backendIngredients = fullProduct.recipeIngredients || fullProduct.ingredients || [];
-            setIngredients(backendIngredients.map(i => ({
-                supply_id: i.supply?.id || i.supply_id, 
-                quantity: parseFloat(i.quantity) 
-            })));
-        }
+        } 
+        
     } catch (error) {
-        console.error("Error cargando detalles", error);
+        console.error("Error cargando detalles del producto:", error);
+        Swal.fire('Error', 'No se pudieron cargar los detalles del producto', 'error');
+    }
+  };
+
+  // ✅ VALIDACIÓN ESTRICTA DE IMÁGENES
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        if (!file.type.startsWith('image/')) {
+            Swal.fire({
+                title: 'Archivo no permitido',
+                text: 'Solo puedes subir imágenes (JPG, PNG, WEBP).',
+                icon: 'error'
+            });
+            e.target.value = ''; 
+            return;
+        }
+        setImageFile(file);
+        setPreviewUrl(URL.createObjectURL(file));
     }
   };
 
@@ -137,8 +167,9 @@ const Products = () => {
   const totalCost = useMemo(() => {
       let total = 0;
       
-      // 1. Costo de Ingredientes (Si es preparado)
-      if (!isCombo && !trackStock) {
+      // 1. Costo de Ingredientes (Aplica para Preparados Y Combos)
+      // Si NO es reventa, sumamos ingredientes + costo fijo
+      if (!trackStock) {
         ingredients.forEach(ing => {
             if (ing.supply_id && ing.quantity) {
                 const supply = supplies.find(s => s.id === ing.supply_id);
@@ -148,27 +179,25 @@ const Products = () => {
         total += parseFloat(fixedCost) || 0;
       }
 
-      // 2. Costo de Compra (Si es reventa)
+      // 2. Costo de Compra (Solo Reventa)
       if (!isCombo && trackStock) {
           total = parseFloat(purchasePrice) || 0;
       }
 
-      // 3. Costo de Combo (Suma de costos de hijos o precios base)
+      // 3. Costo de Productos Hijos (Solo Combos)
       if (isCombo) {
           bundleItems.forEach(item => {
               const prod = products.find(p => p.id === item.child_product_id);
-              // Estimación: Costo del hijo o 60% de su precio venta si no hay dato
               if (prod) {
-                 const childCost = parseFloat(prod.total_cost) || (prod.price * 0.6); 
+                 // Usamos total_cost si existe, sino estimamos con purchase_price o 60% del precio venta
+                 const childCost = parseFloat(prod.total_cost) || parseFloat(prod.purchase_price) || (prod.price * 0.6); 
                  total += childCost * (item.quantity || 0);
               }
           });
-          total += parseFloat(fixedCost) || 0;
       }
       return total;
   }, [ingredients, fixedCost, supplies, bundleItems, products, isCombo, trackStock, purchasePrice]);
 
-  // Cálculos finales para la UI
   const estimatedProfit = (parseFloat(price) || 0) - totalCost;
   const profitMargin = (parseFloat(price) || 0) > 0 ? (estimatedProfit / parseFloat(price)) * 100 : 0;
 
@@ -179,51 +208,53 @@ const Products = () => {
     try {
         const payload = new FormData();
         
-        // Datos Básicos
         payload.append('name', name);
         payload.append('price', String(price));
         payload.append('description', description || '');
         if (imageFile) payload.append('file', imageFile);
 
-        // 🔥🔥🔥 LÓGICA CRÍTICA BLINDADA 🔥🔥🔥
-        // Si es false, NO LO ENVIAMOS. El backend lo tomará como undefined (falso).
+        // Preparamos los ingredientes limpios (se usan en Combo y en Preparado)
+        const cleanIngredients = ingredients
+            .filter(i => i.supply_id && i.quantity > 0)
+            .map(i => ({ supply_id: i.supply_id, quantity: parseFloat(i.quantity) }));
 
+        // 🔥 LÓGICA DE ENVÍO
         if (isCombo) {
             // --- CASO COMBO ---
-            payload.append('is_combo', 'true'); // Solo enviamos si es true
+            payload.append('is_combo', 'true');
+            payload.append('track_stock', 'false'); 
             
-            // Validar Bundle
             const cleanBundle = bundleItems
                 .filter(i => i.child_product_id && i.quantity > 0)
                 .map(i => ({ child_product_id: i.child_product_id, quantity: parseInt(i.quantity) }));
+            
             if (cleanBundle.length === 0) throw new Error(t('products.comboMustHaveProducts'));
             
             payload.append('bundle_items', JSON.stringify(cleanBundle));
             payload.append('fixed_cost', String(fixedCost || 0));
 
+            // ✅ INSUMOS EN COMBOS: Si hay ingredientes, los enviamos
+            if (cleanIngredients.length > 0) {
+                payload.append('ingredients', JSON.stringify(cleanIngredients));
+            }
+
         } else {
-            // --- CASO PRODUCTO NORMAL (NO ENVIAMOS is_combo) ---
-            
+            // --- CASO PRODUCTO NORMAL ---
             if (!categoryId) throw new Error(t('products.mustSelectCategory'));
             payload.append('category_id', categoryId);
 
             if (trackStock) {
-                // ES REVENTA (Kiosco)
-                payload.append('track_stock', 'true'); // Solo enviamos si es true
+                // REVENTA
+                payload.append('track_stock', 'true');
                 payload.append('stock', String(stock || 0));
                 payload.append('purchase_price', String(purchasePrice || 0));
             } else {
-                // ES PREPARADO (Cocina). NO ENVIAMOS track_stock.
-                
-                const cleanIngredients = ingredients
-                    .filter(i => i.supply_id && i.quantity > 0)
-                    .map(i => ({ supply_id: i.supply_id, quantity: parseFloat(i.quantity) }));
-                
+                // PREPARADO
+                // Nota: track_stock no se envía (false por defecto en backend gracias al DTO opcional)
                 payload.append('ingredients', JSON.stringify(cleanIngredients));
                 payload.append('fixed_cost', String(fixedCost || 0));
             }
         }
-        // 🔥🔥🔥 FIN DE LÓGICA BLINDADA 🔥🔥🔥
 
         if (editingProduct) {
             await updateProduct({ id: editingProduct.id, data: payload });
@@ -252,7 +283,6 @@ const Products = () => {
 
   return (
     <div className="space-y-6">
-      {/* HEADER */}
       <div className="flex flex-col xl:flex-row justify-between items-center gap-4 bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
             <Layers className="text-primary" />
@@ -344,7 +374,6 @@ const Products = () => {
           <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingProduct ? t('products.editProduct') : t('products.newProduct')}>
             <form onSubmit={handleSubmit} className="space-y-4">
                 
-                {/* SELECTOR PRINCIPAL: COMBO O NORMAL */}
                 <div className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${isCombo ? 'bg-purple-50 border-purple-100' : 'bg-gray-50 border-gray-200'}`}>
                     <input 
                         type="checkbox" 
@@ -353,7 +382,6 @@ const Products = () => {
                         onChange={e => { 
                             const val = e.target.checked;
                             setIsCombo(val); 
-                            // IMPORTANTE: Si es combo, desactivamos reventa
                             if (val) setTrackStock(false); 
                         }} 
                         className={`w-5 h-5 text-purple-600 rounded cursor-pointer ${editingProduct ? 'opacity-50' : ''}`}
@@ -365,11 +393,15 @@ const Products = () => {
                     {isCombo ? <Gift className="text-purple-500"/> : <Package className="text-gray-400"/>}
                 </div>
 
-                {/* DATOS BÁSICOS */}
                 <div className="flex gap-4">
                     <div className="w-24 h-24 shrink-0 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center border-2 border-dashed border-gray-300 relative overflow-hidden group">
                         {previewUrl ? <img src={previewUrl} className="w-full h-full object-cover" /> : <Upload className="text-gray-400"/>}
-                        <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => { const f = e.target.files[0]; if(f){ setImageFile(f); setPreviewUrl(URL.createObjectURL(f)); } }} />
+                        <input 
+                            type="file" 
+                            accept="image/png, image/jpeg, image/webp" 
+                            className="absolute inset-0 opacity-0 cursor-pointer" 
+                            onChange={handleImageChange} 
+                        />
                     </div>
                     <div className="flex-1 space-y-3">
                         <div>
@@ -396,7 +428,6 @@ const Products = () => {
                     <textarea rows="2" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800 dark:text-white resize-none" value={description} onChange={e=>setDescription(e.target.value)}></textarea>
                 </div>
 
-                {/* SELECTOR TIPO: COCINA vs REVENTA */}
                 {!isCombo && (
                     <div className="bg-gray-50 dark:bg-gray-800 p-1 rounded-xl flex">
                         <button type="button" onClick={() => setTrackStock(false)} disabled={!!editingProduct} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${!trackStock ? 'bg-white shadow text-orange-600 ring-1 ring-orange-100' : 'text-gray-400 hover:text-gray-600'}`}>
@@ -408,19 +439,38 @@ const Products = () => {
                     </div>
                 )}
 
-                {/* FORMULARIOS ESPECÍFICOS SEGÚN TIPO */}
+                {/* FORMULARIOS ESPECÍFICOS */}
                 {isCombo ? (
                     // MODO COMBO
-                    <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl border border-purple-100 space-y-3">
-                        <div className="flex items-center gap-2 text-purple-700 font-bold text-sm"><Package size={18} /> {t('products.packContent')}</div>
-                        {bundleItems.map((item, index) => (
-                            <div key={index} className="flex gap-2 items-center">
-                                <div className="flex-1"><SearchableSelect options={products.filter(p => !p.is_combo)} value={item.child_product_id} onChange={(val) => updateBundle(index, 'child_product_id', val)} placeholder={t('products.productPlaceholder')}/></div>
-                                <input type="number" className="w-20 p-2 border rounded-lg text-center font-bold dark:bg-gray-800" value={item.quantity} onChange={(e) => updateBundle(index, 'quantity', e.target.value)}/>
-                                <button type="button" onClick={() => removeBundleRow(index)} className="text-red-400"><Trash2 size={16}/></button>
+                    <div className="space-y-4">
+                        <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl border border-purple-100 space-y-3">
+                            <div className="flex items-center gap-2 text-purple-700 font-bold text-sm"><Package size={18} /> {t('products.packContent')}</div>
+                            {bundleItems.map((item, index) => (
+                                <div key={index} className="flex gap-2 items-center">
+                                    <div className="flex-1"><SearchableSelect options={products.filter(p => !p.is_combo)} value={item.child_product_id} onChange={(val) => updateBundle(index, 'child_product_id', val)} placeholder={t('products.productPlaceholder')}/></div>
+                                    <input type="number" className="w-20 p-2 border rounded-lg text-center font-bold dark:bg-gray-800" value={item.quantity} onChange={(e) => updateBundle(index, 'quantity', e.target.value)}/>
+                                    <button type="button" onClick={() => removeBundleRow(index)} className="text-red-400"><Trash2 size={16}/></button>
+                                </div>
+                            ))}
+                            <button type="button" onClick={addBundleRow} className="text-xs font-bold text-purple-600 flex items-center gap-1"><Plus size={14}/> {t('products.addProduct')}</button>
+                        </div>
+
+                        {/* ✅ SECCIÓN DE INSUMOS PARA COMBOS (Visible) */}
+                        <div className="p-4 bg-orange-50 dark:bg-orange-900/10 rounded-xl border border-orange-100 space-y-3">
+                            <div className="flex items-center gap-2 text-orange-700 font-bold text-sm"><Box size={18} /> Insumos Extra (Empaques/Salsas)</div>
+                            <label className="text-xs font-bold text-gray-500 uppercase">{t('products.extraFixedCost')}</label>
+                            <input type="number" step="0.10" className="input-base w-full p-2 border rounded-xl dark:bg-gray-800" value={fixedCost} onChange={e=>setFixedCost(e.target.value)}/>
+                            <div>
+                                {ingredients.map((ing, index) => (
+                                    <div key={index} className="flex gap-2 mb-2 items-center">
+                                        <div className="flex-1"><SearchableSelect options={supplies} value={ing.supply_id} onChange={(val) => updateIngredient(index, 'supply_id', val)} placeholder={t('products.supplyPlaceholder')} /></div>
+                                        <input type="number" placeholder={t('products.kgShort')} className="w-20 p-2 border rounded-lg text-center dark:bg-gray-800" value={ing.quantity} onChange={(e) => updateIngredient(index, 'quantity', e.target.value)} />
+                                        <button type="button" onClick={() => removeIngredientRow(index)} className="text-red-400"><Trash2 size={16}/></button>
+                                    </div>
+                                ))}
+                                <button type="button" onClick={addIngredientRow} className="text-xs font-bold text-primary flex items-center gap-1"><Plus size={14}/> {t('products.addIngredient')}</button>
                             </div>
-                        ))}
-                        <button type="button" onClick={addBundleRow} className="text-xs font-bold text-purple-600 flex items-center gap-1"><Plus size={14}/> {t('products.addProduct')}</button>
+                        </div>
                     </div>
                 ) : trackStock ? (
                     // MODO REVENTA

@@ -119,7 +119,8 @@
     "annulled": "ANNULLED",
     "valid": "VALID",
     "print": "Print",
-    "close": "Close"
+    "close": "Close",
+    "viewTicket":"View Ticket"
   },
   "staffDashboard": {
     "loadingData": "Loading data...",

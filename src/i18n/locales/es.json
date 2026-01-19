@@ -125,7 +125,8 @@
     "annulled": "ANULADA",
     "valid": "VALIDA",
     "print": "Imprimir",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "viewTicket":"Ver Ticket"
   },
   "staffDashboard": {
     "loadingData": "Cargando datos...",

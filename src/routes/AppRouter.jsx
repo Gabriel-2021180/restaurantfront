@@ -25,7 +25,7 @@ import PickupPoint from '../pages/orders/PickupPoint';
 import UserProfile from '../pages/profile/UserProfile';
 import RequireSecuritySetup from '../components/auth/RequireSecuritySetup';
 import TipsPage from '../pages/waiter/TipsPage';
-
+import ShiftHistory from '../pages/admin/ShiftHistory';
 const AppRouter = () => {
   return (
     <BrowserRouter>
@@ -155,6 +155,12 @@ const AppRouter = () => {
                     
                     {/* Redirección para cualquier otra ruta no encontrada */}
                     <Route path="*" element={<Navigate to="/" replace />} />
+
+                    <Route path="/admin/shifts" element={
+                      <ProtectedRoute allowedRoles={['super-admin', 'admin']}>
+                          <ShiftHistory />
+                      </ProtectedRoute>
+                    } />
                   </Routes>
                 </Layout>
               </RequireSecuritySetup>

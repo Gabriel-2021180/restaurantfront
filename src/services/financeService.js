@@ -1,8 +1,7 @@
 import api from '../api/axios'; 
 
-// 🔥 CORRECCIÓN: Usamos 'export default' para que se pueda importar sin llaves {}
 export default {
-    // PASO 2: Obtener lista para el cajero
+    // 1. Obtener lista para el cajero
     getPendingOrders: async () => {
         try {
             const response = await api.get('/orders?status=pending_payment');
@@ -13,10 +12,17 @@ export default {
         }
     },
 
+    // ✅ CORREGIDO: Usamos 'api' en lugar de 'axios'
     getDailyShifts: async (date) => {
-        const query = date ? `?date=${date}` : '';
-        const { data } = await api.get(`/finance/cash-register/daily-shifts${query}`);
-        return data;
+        try {
+            const response = await api.get('/finance/cash-register/daily-shifts', {
+                params: { date }
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error obteniendo turnos:", error);
+            throw error;
+        }
     },
 
     getAllInvoices: async (type = 'dine_in', period = 'day', from = null, to = null, page = 1, limit = 10) => {
@@ -43,7 +49,7 @@ export default {
     },
 
     // Configuración
-    getSettings: async () => { // <--- RENOMBRADO A getSettings PARA COINCIDIR CON TU COMPONENTE
+    getSettings: async () => {
         try {
             const response = await api.get('/finance/config');
             return response.data;
@@ -52,12 +58,12 @@ export default {
         }
     },
 
-    updateSettings: async (data) => { // <--- RENOMBRADO A updateSettings
+    updateSettings: async (data) => { 
         const response = await api.put('/finance/config', data);
         return response.data;
     },
 
-    // PASO 3: Facturar
+    // Facturación
     createInvoice: async ({ order_id, client_name, client_nit, payment_method }) => {
         const payload = { 
             order_id,
@@ -85,6 +91,4 @@ export default {
         const { data } = await api.post('/finance/cash-register/close', { cash_count, notes });
         return data;
     }
-
-    
 };

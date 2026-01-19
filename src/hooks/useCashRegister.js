@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import  financeService  from '../services/financeService';
 import Swal from 'sweetalert2';
+import api from '../api/axios'; 
 
 export const useCashRegister = () => {
   const [session, setSession] = useState(null);
@@ -89,12 +90,25 @@ export const useCashRegister = () => {
     }
   };
 
+  const getDailyShifts = async (date) => {
+    try {
+      // No activamos isLoading global aquí para no bloquear toda la UI si se usa en segundo plano
+      const data = await financeService.getDailyShifts(date);
+      return data;
+    } catch (error) {
+      console.error("Error cargando historial de turnos:", error);
+      // No lanzamos alerta molesta, solo retornamos array vacío
+      return [];
+    }
+  };
+
   return {
     isRegisterOpen,
     session,
     loading,
     checkStatus,
     openRegister,
-    closeRegister
+    closeRegister,
+    getDailyShifts
   };
 };

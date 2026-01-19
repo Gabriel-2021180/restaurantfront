@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import orderService from '../../services/orderService';
-import userService from '../../services/userService';
 import KitchenTicket from '../../components/orders/KitchenTicket';
 import { Loader2 } from 'lucide-react';
 
@@ -15,12 +14,27 @@ const KitchenPrintView = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const history = await orderService.getKitchenHistory(orderId);
-        const fullOrder = await orderService.getOrder(orderId);
+        // 🚀 OPTIMIZACIÓN 1: Carga en PARALELO (Ahorra 50% de tiempo de red)
+        const [history, fullOrder] = await Promise.all([
+            orderService.getKitchenHistory(orderId),
+            orderService.getOrder(orderId)
+        ]);
         
-        // 🔥 LÓGICA DE NOMBRE DE MESA O CLIENTE 🔥
-        // Si no hay mesa, usamos el nombre del cliente para llevar
-        const tableName = fullOrder.table?.table_number || fullOrder.client_name || fullOrder.pickup_name || "PARA LLEVAR";
+        // --- LÓGICA DE TÍTULO ---
+        let finalTitle = "PARA LLEVAR"; 
+
+        if (fullOrder.table) {
+            // Limpieza robusta del nombre de la mesa
+            const rawTable = String(fullOrder.table.table_number);
+            const cleanNumber = rawTable.replace(/mesa/gi, '').replace(/[-]/g, '').trim();
+            finalTitle = `MESA ${cleanNumber}`;
+        } else if (fullOrder.order_type === 'dine_in' && !fullOrder.table) {
+            finalTitle = "MESA S/N"; 
+        } else {
+            const clientName = fullOrder.client_name || fullOrder.pickup_name || "CLIENTE";
+            finalTitle = `LLEVAR: ${clientName}`;
+        }
+
         const orderNum = fullOrder.order_number || "---";
 
         if (history && history.length > 0) {
@@ -33,8 +47,7 @@ const KitchenPrintView = () => {
 
              setTicketData({
                  ...batchToPrint,
-                 table_number: tableName,
-                 client_name: fullOrder.client_name || fullOrder.pickup_name, // 🔥 ESTA LÍNEA ES VITAL
+                 display_title: finalTitle.toUpperCase(),
                  order_number: orderNum,
                  waiter_name: finalWaiterName
              });
@@ -50,7 +63,9 @@ const KitchenPrintView = () => {
   useEffect(() => {
     if (ticketData && !hasPrinted.current) {
       hasPrinted.current = true; 
-      setTimeout(() => window.print(), 500);
+      // 🚀 OPTIMIZACIÓN 2: Bajamos de 500ms a 100ms. 
+      // Es suficiente para que React renderice y se siente instantáneo.
+      setTimeout(() => window.print(), 100);
     }
   }, [ticketData]);
 

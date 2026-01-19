@@ -621,7 +621,11 @@
     "estimatedCost": "Costo Estimado",
     "margin": "Margen",
     "cancel": "Cancelar",
-    "save": "Guardar"
+    "save": "Guardar",
+    "newProduct": "Nuevo Producto",
+    "profitabilityAnalysis": "Análisis de Rentabilidad",
+    "totalCost": "Costo Total",
+    "netProfit": "Ganancia Neta"
   },
   "profile": {
     "activeSecurity": "Seguridad Activa",
@@ -751,6 +755,33 @@
     "noteOptional": "Nota (Opcional)",
     "notePlaceholder": "Ej: Cliente muy amable",
     "confirmAndSave": "Confirmar y Guardar"
+  },
+
+  "shiftHistory": {
+    "title": "Historial de Turnos de Caja",
+    "subtitle": "Revisa aperturas, cierres y diferencias de caja.",
+    "loading": "Cargando historial...",
+    "noRecords": "No hay registros de caja para esta fecha.",
+    "status": "Estado",
+    "responsible": "Responsable (Apertura)",
+    "schedule": "Horario",
+    "startingCash": "Base Inicial",
+    "cashSales": "Ventas Efec.",
+    "difference": "Diferencia",
+    "details": "Detalle",
+    "open": "ABIERTA",
+    "auto": "AUTO",
+    "closed": "CERRADA",
+    "systemClose": "Cierre por Sistema",
+    "modalTitle": "Detalle de Cierre de Caja",
+    "closingNotes": "Notas del Cierre",
+    "noNotes": "Sin notas adicionales.",
+    "digitalSales": "Venta Total Digital",
+    "totalCashSales": "Venta Total Efectivo",
+    "negativeDifference": "Diferencia Negativa",
+    "missingManual": "Faltó dinero en el conteo manual.",
+    "missingAuto": "Cierre automático: No se incluyó la base inicial en el conteo."
   }
+
   
 }

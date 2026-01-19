@@ -82,17 +82,14 @@ const KitchenControl = () => {
     };
 
     const handleSelectBatch = (batch) => {
-        const isTakeaway = activeTab === 'pickup';
-        
-        setSelectedBatch({
-            ...batch,
-            is_takeaway: isTakeaway,
-            // Pasamos la info original del item seleccionado
-            table_number: isTakeaway ? null : selectedItem?.table_number,
-            client_name: isTakeaway ? (selectedItem?.client_name || selectedItem?.pickup_name || t('kitchenControl.client')) : null,
-            // La lógica del waiter_name se mantiene, pero ahora es más clara
-            waiter_name: batch.waiter_name || (isTakeaway ? t('kitchenControl.cashier') : t('kitchenControl.unassigned'))
-        });
+    const isTakeaway = activeTab === 'pickup';
+    
+    setSelectedBatch({
+        ...batch,
+        // Forzamos que use el número de mesa del item que seleccionaste en la cuadrícula
+        table_number: isTakeaway ? null : (selectedItem?.table_number || batch.table_number),
+        client_name: isTakeaway ? (selectedItem?.client_name || selectedItem?.pickup_name) : null,
+    });
     };
 
     useEffect(() => {

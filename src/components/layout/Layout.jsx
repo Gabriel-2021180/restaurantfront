@@ -8,7 +8,7 @@ import {
   UtensilsCrossed, Layers, TicketPercent, Square, 
   DollarSign, Settings, ClipboardList, Package,
   ChefHat, TrendingUp, LogOut, Users, FileText, Shield, Award, ShoppingBag,ChevronDown,  
-  User
+  User,Clock,
 } from 'lucide-react';
 import { Link,NavLink } from 'react-router-dom';
 const Layout = ({ children }) => {
@@ -148,6 +148,22 @@ const Layout = ({ children }) => {
                 </NavLink>
             </div>
           )}
+
+          {hasRole(['super-admin', 'admin']) && (
+            <NavLink
+              to="/admin/shifts"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
+                  isActive
+                    ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-primary'
+                }`
+              }
+            >
+              <Clock size={20} />
+              <span className="font-medium">Historial Cajas</span>
+            </NavLink>
+        )}
 
           {hasRole(['super-admin', 'admin', 'cashier']) && (
             <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-700">

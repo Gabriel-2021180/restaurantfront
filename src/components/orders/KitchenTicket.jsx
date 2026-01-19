@@ -19,21 +19,23 @@ const KitchenTicket = ({ ticket, data, batchNumber, sentAt }) => {
     return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   };
 
-  // 🔥 VALIDACIÓN CORREGIDA: Detecta si es mesa o para llevar
+ 
   const getTableDisplayName = () => {
-      // Caso A: Si tiene número de mesa y NO es un marcador de posición (S/N o ??)
-      if (record.table_number && record.table_number !== 'S/N' && record.table_number !== '??') {
-          // Limpiamos la palabra "MESA" por si el backend ya la trae, y devolvemos solo el número/nombre de mesa
-          return String(record.table_number).toUpperCase().replace('MESA', '').trim();
-      }
+    if (record.display_title) {
+        return record.display_title;
+    }
 
-      // Caso B: Si no hay mesa, pero hay nombre de cliente (Es Para Llevar)
-      if (record.client_name) {
-          return record.client_name.toUpperCase();
-      }
+   
+    if (record.table_number && record.table_number !== 'S/N' && record.table_number !== '??') {
+        return String(record.table_number).toUpperCase(); // <--- AQUÍ ESTABA EL ERROR
+    }
 
-      // Caso C: Si no hay nada de lo anterior
-      return 'PARA LLEVAR';
+    // 3. Casos para llevar
+    if (record.client_name) {
+        return record.client_name.toUpperCase();
+    }
+
+    return 'PARA LLEVAR';
   };
 
   return (
@@ -43,7 +45,7 @@ const KitchenTicket = ({ ticket, data, batchNumber, sentAt }) => {
         <p className="text-[10px] font-bold uppercase mb-1">ORDEN DE COCINA</p>
         <h1 className="text-xl font-black uppercase leading-none mb-2">{title}</h1>
         
-        {/* NOMBRE GIGANTE: Solo el número o el Nombre del Cliente */}
+        {/* NOMBRE GIGANTE */}
         <div className="border-2 border-black border-dashed py-2 my-1">
             <h2 className="text-2xl font-black uppercase leading-tight px-1 break-words">
                 {getTableDisplayName()}

@@ -176,7 +176,7 @@ const PickupPoint = () => {
           <div className="flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden">
               
               {/* IZQUIERDA: CATÁLOGO */}
-              <div className="w-full lg:flex-1 flex flex-col border-r dark:border-gray-700 bg-gray-50 dark:bg-dark-bg">
+              <div className="w-full lg:flex-1 flex flex-col border-r dark:border-gray-700 bg-gray-50 dark:bg-dark-bg overflow-y-auto">
                   <div className="bg-white dark:bg-dark-card border-b dark:border-gray-700 p-4 space-y-3 sticky top-0 z-10">
                       <div className="relative">
                           <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />

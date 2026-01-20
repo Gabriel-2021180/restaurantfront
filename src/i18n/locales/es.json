@@ -782,7 +782,22 @@
     "negativeDifference": "Diferencia Negativa",
     "missingManual": "Faltó dinero en el conteo manual.",
     "missingAuto": "Cierre automático: No se incluyó la base inicial en el conteo."
+  },
+  "footer": {
+    "role": "Desarrollador Backend & Fullstack",
+    "language": "Idioma",
+    "rights": "Todos los derechos reservados.",
+    "contact": "Contacto Profesional"
+  },
+  "securitySetup": {
+    "title": "Protege tu Cuenta",
+    "subtitle": "Configura tu seguridad para continuar.",
+    "securityQuestion": "Pregunta de Seguridad",
+    "placeholderQuestion": "Ej: Nombre de mi primera mascota",
+    "secretAnswer": "Respuesta Secreta",
+    "placeholderAnswer": "Respuesta...",
+    "currentPassword": "Contraseña Actual",
+    "placeholderPassword": "Confirma tu identidad",
+    "button": "Guardar y Acceder"
   }
-
-  
 }

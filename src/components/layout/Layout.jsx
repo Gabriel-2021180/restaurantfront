@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import NotificationBell from './NotificationBell';
+import Footer from './Footer';
+import { Outlet } from 'react-router-dom';
 import { 
   Menu, Sun, Moon, Languages, LayoutDashboard, 
   UtensilsCrossed, Layers, TicketPercent, Square, 
@@ -237,12 +239,18 @@ const Layout = ({ children }) => {
           </div>
         </header>
 
-        <main className="flex-1 overflow-x-hidden overflow-y-auto p-6 bg-gray-50 dark:bg-dark-bg">
-          {children}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto flex flex-col">
+            <div className="flex-1 p-4 md:p-6">
+                {children}
+            </div>
+            
+           
+            <Footer />
         </main>
       </div>
       {isSidebarOpen && <div onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 z-40 bg-black opacity-50 md:hidden"></div>}
     </div>
+    
   );
 };
 

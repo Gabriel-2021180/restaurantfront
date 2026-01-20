@@ -807,5 +807,22 @@
     "negativeDifference": "Negative Difference",
     "missingManual": "Money missing in manual count.",
     "missingAuto": "Auto close: Starting cash not included in count."
+  },
+  "footer": {
+    "role": "Backend & Fullstack Developer",
+    "language": "Language",
+    "rights": "All rights reserved.",
+    "contact": "Professional Contact"
+  },
+  "securitySetup": {
+    "title": "Protect Your Account",
+    "subtitle": "Configure your security to continue.",
+    "securityQuestion": "Security Question",
+    "placeholderQuestion": "Ex: Name of my first pet",
+    "secretAnswer": "Secret Answer",
+    "placeholderAnswer": "Answer...",
+    "currentPassword": "Current Password",
+    "placeholderPassword": "Confirm your identity",
+    "button": "Save and Access"
   }
 }

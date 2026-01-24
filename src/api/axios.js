@@ -21,7 +21,6 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Detectamos si es un error 401 (No autorizado)
     if (error.response && error.response.status === 401) {
       
       // 🚨 EXCEPCIÓN IMPORTANTE:

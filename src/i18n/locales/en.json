@@ -824,5 +824,29 @@
     "currentPassword": "Current Password",
     "placeholderPassword": "Confirm your identity",
     "button": "Save and Access"
+  },
+  "auth": {
+    "login": {
+      "title": "Login",
+      "email": "Email Address",
+      "password": "Password",
+      "submit": "Sign In",
+      "loading": "Checking...",
+      "forgot_password": "Forgot password?",
+      "error_generic": "Login failed. Please check your credentials.",
+      "error_lockout": "Account temporarily locked. Try again in {{minutes}} minutes.",
+      "locked_btn": "Access Locked",
+      "incorrectCredentials": "Invalid email or password",
+      "connectionError": "Could not connect to server"
+    },
+    "register": {
+      "password_strength": {
+        "title": "Password Strength:",
+        "min_chars": "At least 8 characters",
+        "uppercase": "One uppercase (A-Z)",
+        "lowercase": "One lowercase (a-z)",
+        "number_special": "One number or symbol"
+      }
+    }
   }
 }

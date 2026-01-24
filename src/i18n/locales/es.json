@@ -255,7 +255,10 @@
     "forgotPassword": "¿Olvidaste tu contraseña?",
     "enter": "Ingresar",
     "newEmployeeQuestion": "¿Eres nuevo empleado? ",
-    "useCodeHere": "Usa tu código aquí"
+    "useCodeHere": "Usa tu código aquí",
+    "connectionError": "No se pudo conectar con el servidor",
+    "error_lockout": "Cuenta bloqueada. Intenta en {{minutes}} minutos.",
+    "locked_btn": "Bloqueado"
   },
   "register": {
     "validCode": "Código válido: {{role}}",
@@ -799,5 +802,29 @@
     "currentPassword": "Contraseña Actual",
     "placeholderPassword": "Confirma tu identidad",
     "button": "Guardar y Acceder"
+  },
+  "auth": {
+    "login": {
+      "title": "Iniciar Sesión",
+      "email": "Correo Electrónico",
+      "password": "Contraseña",
+      "submit": "Entrar",
+      "loading": "Verificando...",
+      "forgot_password": "¿Olvidaste tu contraseña?",
+      "error_generic": "Error al iniciar sesión. Verifica tus datos.",
+      "error_lockout": "Cuenta bloqueada temporalmente. Intenta de nuevo en {{minutes}} minutos.",
+      "locked_btn": "Acceso Bloqueado",
+      "incorrectCredentials": "El correo o la contraseña son incorrectos",
+      "connectionError": "No se pudo conectar con el servidor"
+    },
+    "register": {
+      "password_strength": {
+        "title": "Seguridad de la contraseña:",
+        "min_chars": "Mínimo 8 caracteres",
+        "uppercase": "Una mayúscula (A-Z)",
+        "lowercase": "Una minúscula (a-z)",
+        "number_special": "Un número o símbolo"
+      }
+    }
   }
 }

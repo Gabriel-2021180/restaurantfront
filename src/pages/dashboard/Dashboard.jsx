@@ -284,7 +284,7 @@ const Dashboard = () => {
 
         {/* TOP GANANCIAS */}
         <div className="bg-white dark:bg-dark-card p-6 rounded-2xl shadow-sm h-[380px] overflow-hidden flex flex-col">
-            <h3 className="font-bold text-lg mb-4 text-green-700 dark:text-green-400">💰 {t('top_profits_title')}</h3>
+            <h3 className="font-bold text-lg mb-4 text-green-700 dark:text-green-400">{t('top_profits_title')}</h3>
             <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pr-2">
                 {topProfitable.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-gray-400">

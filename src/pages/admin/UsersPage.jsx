@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/userService';
 import Modal from '../../components/ui/Modal';
-import { Users, UserPlus, Copy, Shield, Loader2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext'; // Importamos para saber quién soy yo
+import { Users, UserPlus, Copy, Shield, Loader2, Ban, CheckCircle, AlertTriangle } from 'lucide-react'; // Nuevos iconos
 import Swal from 'sweetalert2';
 
 const UsersPage = () => {
   const { t } = useTranslation();
+  const { user: currentUser } = useAuth(); // Obtenemos el usuario logueado
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,27 +35,61 @@ const UsersPage = () => {
       const safeUsers = Array.isArray(usersData) ? usersData : (usersData.data || []);
       const safeRoles = Array.isArray(rolesData) ? rolesData : (rolesData.data || []);
 
-      // 🔥 FILTRO DE ROLES: Quitamos Super Admin y Chef
       const allowedRoles = safeRoles.filter(role => {
           const name = (role.slug || role.name || '').toLowerCase();
-          
-          // 1. Ocultar Super Admin (Seguridad)
           if (name.includes('super')) return false;
-          
-          // 2. Ocultar Chef (Requerimiento de negocio)
           if (name.includes('chef') || name.includes('cocinero')) return false;
-
-          // Deberían quedar solo: admin, mesero(waiter), cajero(cashier)
           return true;
       });
 
       setUsers(safeUsers);
-      setRoles(allowedRoles); // <--- Guardamos la lista filtrada
+      setRoles(allowedRoles);
       
     } catch (error) {
       console.error(t('usersPage.errorLoadingUsers'), error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // --- LÓGICA DE BANEO ---
+  const handleToggleBan = async (targetUser) => {
+    const isBanning = !targetUser.is_banned; // Si está false, pasará a true
+    
+    // 1. Confirmación con SweetAlert
+    const result = await Swal.fire({
+        title: isBanning ? '¿Banear Usuario?' : '¿Reactivar Usuario?',
+        text: isBanning 
+            ? `Se revocará el acceso inmediato a ${targetUser.first_names}.`
+            : `El usuario ${targetUser.first_names} podrá volver a iniciar sesión.`,
+        icon: isBanning ? 'warning' : 'question',
+        showCancelButton: true,
+        confirmButtonColor: isBanning ? '#d33' : '#10b981', // Rojo para banear, Verde para activar
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: isBanning ? 'Sí, Banear' : 'Sí, Reactivar',
+        cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+        // 2. Llamada al Backend
+        await userService.updateUser(targetUser.id, { is_banned: isBanning });
+
+        // 3. Actualizar estado local (para no recargar página)
+        setUsers(prevUsers => prevUsers.map(u => 
+            u.id === targetUser.id ? { ...u, is_banned: isBanning } : u
+        ));
+
+        Swal.fire(
+            isBanning ? '¡Baneado!' : '¡Activado!',
+            `El usuario ha sido ${isBanning ? 'bloqueado' : 'reactivado'} exitosamente.`,
+            'success'
+        );
+
+    } catch (error) {
+        console.error(error);
+        Swal.fire('Error', 'No se pudo actualizar el estado del usuario.', 'error');
     }
   };
 
@@ -89,7 +125,6 @@ const UsersPage = () => {
             <p className="text-gray-500 text-sm">{t('usersPage.manageAccessSystem')}</p>
         </div>
         
-        {/* ÚNICO BOTÓN: Generar Invitación */}
         <button onClick={() => setIsInviteOpen(true)} className="bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-xl font-bold flex gap-2 items-center shadow-lg transition active:scale-95">
             <UserPlus size={18}/> {t('usersPage.generateInvitation')}
         </button>
@@ -98,27 +133,58 @@ const UsersPage = () => {
       {/* GRID DE USUARIOS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {users.length > 0 ? (
-            users.map(user => (
-                <div key={user.id} className="bg-white dark:bg-dark-card p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 relative group hover:shadow-md transition">
+            users.map(user => {
+                const isMe = currentUser?.id === user.id; // ¿Soy yo?
+                const isBanned = user.is_banned; // ¿Está baneado?
+
+                return (
+                <div key={user.id} className={`p-5 rounded-2xl shadow-sm border relative group transition duration-300 ${
+                    isBanned 
+                        ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900' // Estilo Baneado
+                        : 'bg-white dark:bg-dark-card border-gray-100 dark:border-gray-700 hover:shadow-md' // Estilo Normal
+                }`}>
+                    
+                    {/* Header Tarjeta */}
                     <div className="flex justify-between items-start mb-2">
-                        <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-primary">
-                            <Shield size={20}/>
+                        <div className={`p-2 rounded-lg ${isBanned ? 'bg-red-100 text-red-600' : 'bg-blue-50 dark:bg-blue-900/20 text-primary'}`}>
+                            {isBanned ? <Ban size={20}/> : <Shield size={20}/>}
                         </div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-600 dark:text-gray-300">
-                            {user.role?.name || t('usersPage.noRole')}
-                        </span>
+                        
+                        {/* Botón de Acción (Solo aparece si no soy yo) */}
+                        {!isMe && (
+                            <button 
+                                onClick={() => handleToggleBan(user)}
+                                className={`p-2 rounded-lg transition-colors ${
+                                    isBanned 
+                                        ? 'bg-green-100 text-green-700 hover:bg-green-200' // Botón Reactivar
+                                        : 'bg-gray-100 text-gray-400 hover:bg-red-100 hover:text-red-600' // Botón Banear (discreto)
+                                }`}
+                                title={isBanned ? "Reactivar usuario" : "Banear usuario"}
+                            >
+                                {isBanned ? <CheckCircle size={18} /> : <Ban size={18} />}
+                            </button>
+                        )}
                     </div>
-                    {/* Nombres completos concatenados */}
-                    <h3 className="font-bold text-lg text-gray-800 dark:text-white truncate">
-                        {user.first_names} {user.last_names}
+
+                    {/* Datos Usuario */}
+                    <h3 className={`font-bold text-lg truncate ${isBanned ? 'text-red-800 dark:text-red-400' : 'text-gray-800 dark:text-white'}`}>
+                        {user.first_names} {user.last_names} {isMe && "(Tú)"}
                     </h3>
                     <p className="text-gray-500 text-sm truncate mb-4">{user.email}</p>
                     
-                    <div className="text-xs text-gray-400">
-                        {t('usersPage.registered')}: {user.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}
+                    <div className="flex items-center justify-between mt-4">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${
+                            isBanned ? 'bg-red-200 text-red-800' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                        }`}>
+                            {isBanned ? '⛔ BANEADO' : user.role?.name || t('usersPage.noRole')}
+                        </span>
+                        
+                        <div className="text-xs text-gray-400">
+                            {t('usersPage.registered')}: {user.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}
+                        </div>
                     </div>
                 </div>
-            ))
+            )})
         ) : (
             <div className="col-span-full text-center py-10 text-gray-400">
                 {t('usersPage.noUsersFound')}
@@ -126,7 +192,7 @@ const UsersPage = () => {
         )}
       </div>
 
-      {/* MODAL INVITACIÓN (Único modal activo) */}
+      {/* MODAL INVITACIÓN (Sin cambios) */}
       <Modal isOpen={isInviteOpen} onClose={() => {setIsInviteOpen(false); setGeneratedCode(null);}} title={t('usersPage.generateAccessCode')}>
         {!generatedCode ? (
             <div className="space-y-4">

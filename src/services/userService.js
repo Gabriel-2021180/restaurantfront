@@ -97,7 +97,11 @@ export default {
   markAllNotificationsAsRead: async () => {
     const { data } = await api.patch('/users/notifications/read-all');
     return data;
+  },
+  updateUser: async (id, data) => {
+    // data puede ser { is_banned: true } o { role_id: "..." }
+    const { data: response } = await api.patch(`/users/${id}`, data);
+    return response;
   }
 
-  
 };

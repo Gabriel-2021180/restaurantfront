@@ -36,6 +36,7 @@ const Tables = () => {
 
   const handleTableClick = async (table) => {
       if (table.status === 'occupied') {
+          // Lógica existente para entrar a mesa ocupada
           const orderWaiterId = table.current_order?.waiter_id || table.current_order?.waiter?.id;
           const isOwner = String(orderWaiterId) === String(user?.id);
           if (isAdmin || isOwner || !orderWaiterId) {
@@ -44,15 +45,44 @@ const Tables = () => {
               Swal.fire({ title: t('tables.accessRestrictedTitle'), text: t('tables.accessRestrictedText'), icon: 'warning' });
           }
       } else if (table.status === 'available') {
+          // Lógica para abrir mesa NUEVA
           const result = await Swal.fire({
               title: t('tables.openTableQuestion', { tableNumber: table.table_number }),
               icon: 'question', showCancelButton: true, confirmButtonText: t('tables.yesOpen'), confirmButtonColor: '#10B981'
           });
+          
           if (result.isConfirmed) {
               try {
                   const newOrder = await openTable(table.id);
                   navigate(`/orders/${newOrder.id}`);
-              } catch (error) { Swal.fire(t('tables.error'), t('tables.couldNotOpenTable'), 'error'); }
+              } catch (error) { 
+                  // 🚨 INTERCEPCIÓN DEL ERROR DE CAJA 🚨
+                  const msg = error.response?.data?.message || t('tables.couldNotOpenTable');
+                  
+                  if (msg.includes('CAJA ESTÁ CERRADA')) {
+                      // Si soy Admin, Super Admin o Cajero -> Me ofrece ir a abrirla
+                      const roleSlug = user?.role?.slug || user?.role || '';
+                      if (['admin', 'super-admin', 'cashier', 'cajero'].includes(roleSlug)) {
+                          Swal.fire({
+                              title: '¡Caja Cerrada!',
+                              text: 'No puedes abrir mesas sin una caja abierta. ¿Quieres abrirla ahora?',
+                              icon: 'warning',
+                              showCancelButton: true,
+                              confirmButtonText: 'Ir a Caja',
+                              cancelButtonText: 'Cancelar',
+                              confirmButtonColor: '#F59E0B'
+                          }).then((res) => {
+                              if (res.isConfirmed) navigate('/finance/cash-register');
+                          });
+                      } else {
+                          // Si soy Mesero -> Solo me avisa
+                          Swal.fire('Atención', msg, 'warning');
+                      }
+                  } else {
+                      // Otro error cualquiera
+                      Swal.fire(t('tables.error'), msg, 'error'); 
+                  }
+              }
           }
       }
   };

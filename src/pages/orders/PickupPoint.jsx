@@ -11,9 +11,13 @@ import {
 import Modal from '../../components/ui/Modal';
 import Swal from 'sweetalert2';
 import toast, { Toaster } from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const PickupPoint = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const { products, isLoading: loadingProducts } = useProducts();
   const { categories } = useCategories();
 
@@ -119,8 +123,29 @@ const PickupPoint = () => {
           Swal.fire({ icon: 'success', title: '¡Pedido Enviado!', text: 'Se ha enviado a cocina.', timer: 1500, showConfirmButton: false });
           setActiveTab('active');
       } catch (error) {
+          // 🚨 VALIDACIÓN CAJA CERRADA
           const msg = error.response?.data?.message || 'Error al crear pedido';
-          Swal.fire('Error', msg, 'error');
+          
+          if (msg.includes('CAJA ESTÁ CERRADA')) {
+              const roleSlug = user?.role?.slug || user?.role || '';
+              if (['admin', 'super-admin', 'cashier', 'cajero'].includes(roleSlug)) {
+                  Swal.fire({
+                      title: '¡Caja Cerrada!',
+                      text: 'Debes abrir caja para registrar pedidos. ¿Ir ahora?',
+                      icon: 'warning',
+                      showCancelButton: true,
+                      confirmButtonText: 'Ir a Caja',
+                      cancelButtonText: 'Cancelar',
+                      confirmButtonColor: '#F59E0B'
+                  }).then((res) => {
+                      if (res.isConfirmed) navigate('/finance/cash-register');
+                  });
+              } else {
+                  Swal.fire('Atención', msg, 'warning');
+              }
+          } else {
+              Swal.fire('Error', msg, 'error');
+          }
       } finally { setIsSubmitting(false); }
   };
 

@@ -887,6 +887,19 @@
     "button": "Guardar y continuar",
     "saved": "Tu cuenta quedó protegida."
   },
+  "passwordChange": {
+    "title": "Cambia tu contraseña",
+    "subtitle": "Tu contraseña es temporal. Elige una nueva para seguir; solo tú la conocerás.",
+    "current": "Contraseña temporal",
+    "next": "Nueva contraseña",
+    "repeat": "Repite la nueva contraseña",
+    "button": "Guardar y continuar",
+    "saved": "Contraseña actualizada.",
+    "weak": "La nueva contraseña no cumple los requisitos.",
+    "same": "La nueva contraseña debe ser distinta de la temporal.",
+    "mismatch": "Las contraseñas no coinciden.",
+    "logout": "Cerrar sesión"
+  },
   "auth": {
     "login": {
       "title": "Iniciar Sesión",

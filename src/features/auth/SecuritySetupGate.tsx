@@ -10,13 +10,78 @@ import api, { getErrorMessage } from '@/lib/api/client'
 import type { User } from '@/types/auth'
 import { AuthHeading, FormError } from './AuthHeading'
 import { AuthLayout } from './AuthLayout'
-import { PasswordInput } from './PasswordInput'
+import { isStrongPassword } from './password'
+import { PasswordInput, PasswordRequirements } from './PasswordInput'
 
 /**
- * Antes de usar el panel, cada cuenta (salvo el super-admin) configura su
- * pregunta de seguridad, que se usa para recuperar la cuenta.
+ * Antes de usar el panel: quien tenga contraseña temporal la cambia (todos los
+ * roles) y luego cada cuenta (salvo el super-admin) configura su pregunta de
+ * seguridad, que se usa para recuperar la cuenta.
  */
 export function SecuritySetupGate({ children }: { children: ReactNode }) {
+  const { user } = useAuth()
+  if (user?.is_password_temporary) return <TemporaryPasswordGate />
+  return <SecurityQuestionGate>{children}</SecurityQuestionGate>
+}
+
+function TemporaryPasswordGate() {
+  const { updateUser, logout } = useAuth()
+  const { t } = useTranslation()
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [repeat, setRepeat] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (loading) return
+    if (!isStrongPassword(next)) return setError(t('passwordChange.weak'))
+    if (next === current) return setError(t('passwordChange.same'))
+    if (next !== repeat) return setError(t('passwordChange.mismatch'))
+    setError(null)
+    setLoading(true)
+    try {
+      const { data } = await api.patch<User>('/users/change-password', { old_password: current, new_password: next })
+      updateUser({ ...data, is_password_temporary: false })
+      toast.success(t('passwordChange.saved'))
+    } catch (err) {
+      setError(getErrorMessage(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <AuthLayout>
+      <AuthHeading title={t('passwordChange.title')} subtitle={t('passwordChange.subtitle')} />
+      <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-5">
+        <FormError message={error} />
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="tp-current">{t('passwordChange.current')}</Label>
+          <PasswordInput id="tp-current" required autoFocus autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="tp-next">{t('passwordChange.next')}</Label>
+          <PasswordInput id="tp-next" required autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
+          <PasswordRequirements value={next} />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="tp-repeat">{t('passwordChange.repeat')}</Label>
+          <PasswordInput id="tp-repeat" required autoComplete="new-password" value={repeat} onChange={(e) => setRepeat(e.target.value)} />
+        </div>
+        <Button type="submit" size="lg" disabled={loading || !current || !next || !repeat}>
+          {loading && <LoaderCircle className="animate-spin" />} {t('passwordChange.button')}
+        </Button>
+        <Button type="button" variant="ghost" onClick={logout}>
+          {t('passwordChange.logout')}
+        </Button>
+      </form>
+    </AuthLayout>
+  )
+}
+
+function SecurityQuestionGate({ children }: { children: ReactNode }) {
   const { user, role, updateUser } = useAuth()
   const { t } = useTranslation()
   const [question, setQuestion] = useState('')

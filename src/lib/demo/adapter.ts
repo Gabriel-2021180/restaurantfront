@@ -83,6 +83,10 @@ on('get', '/roles', () => {
   return [...seen.values()]
 })
 on('get', '/users', () => db.users.map((u) => ({ created_at: '2026-01-10T12:00:00Z', is_banned: false, ...u })))
+on('patch', '/users/change-password', (_, ctx) => {
+  if (ctx.body.old_password !== db.DEMO_PASSWORD) fail(400, 'La contraseña actual no es correcta.', 'INVALID_PASSWORD')
+  return Object.assign(me(ctx), { is_password_temporary: false })
+})
 on('patch', '/users/:id', ([id], { body }) => {
   const u = db.users.find((x) => x.id === id) ?? fail(404, 'Usuario no encontrado', 'USER_NOT_FOUND')
   if (id === 'u-owner' && ('role_id' in body || 'is_banned' in body)) fail(403, 'No puedes cambiar tu propio rol ni bloquearte.', 'SELF_ADMIN_FORBIDDEN')

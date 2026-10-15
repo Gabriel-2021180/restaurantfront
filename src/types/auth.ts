@@ -18,6 +18,8 @@ export interface User {
   role?: Role | string | null
   is_banned?: boolean
   security_question?: string | null
+  /** La contraseña la puso el sistema o un admin: hay que cambiarla antes de usar el panel. */
+  is_password_temporary?: boolean
   created_at?: string
   [key: string]: unknown
 }

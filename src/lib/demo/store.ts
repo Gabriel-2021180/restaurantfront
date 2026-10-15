@@ -19,6 +19,8 @@ export const users: User[] = [
   { id: 'u-waiter', email: 'mesero@demo.bo', first_names: 'Luis', last_names: 'Mamani', role: role('waiter', 'mesero'), security_question: 'Ciudad natal' },
   { id: 'u-cashier', email: 'cajero@demo.bo', first_names: 'Rosa', last_names: 'Flores', role: role('cashier', 'cajero'), security_question: 'Ciudad natal' },
   { id: 'u-chef', email: 'chef@demo.bo', first_names: 'Jorge', last_names: 'Condori', role: role('chef', 'cocinero'), security_question: 'Ciudad natal' },
+  // Cuenta recién creada: entra con contraseña temporal y debe cambiarla.
+  { id: 'u-new', email: 'nuevo@demo.bo', first_names: 'Marco', last_names: 'Rojas', role: role('waiter', 'mesero'), security_question: null, is_password_temporary: true },
 ]
 
 export const categories = [

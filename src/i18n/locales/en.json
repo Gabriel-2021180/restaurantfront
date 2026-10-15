@@ -883,6 +883,19 @@
     "button": "Save and continue",
     "saved": "Your account is now protected."
   },
+  "passwordChange": {
+    "title": "Change your password",
+    "subtitle": "Your password is temporary. Choose a new one to continue; only you will know it.",
+    "current": "Temporary password",
+    "next": "New password",
+    "repeat": "Repeat the new password",
+    "button": "Save and continue",
+    "saved": "Password updated.",
+    "weak": "The new password does not meet the requirements.",
+    "same": "The new password must be different from the temporary one.",
+    "mismatch": "Passwords do not match.",
+    "logout": "Sign out"
+  },
   "auth": {
     "login": {
       "title": "Login",

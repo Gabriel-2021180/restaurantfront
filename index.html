@@ -1,13 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>resto-admin-react</title>
+    <link rel="icon" type="image/svg+xml" href="/brand/logo-default.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <title>Resto Admin</title>
+    <meta name="theme-color" content="#F6F4F1" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#191715" media="(prefers-color-scheme: dark)" />
+    <!-- Si cambias este script, actualiza su hash sha256 en la CSP de vercel.json. -->
+    <script>try{var m=localStorage.getItem("theme-mode");if(m==="dark"||((!m||m==="system")&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.classList.add("dark")}catch(e){}</script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

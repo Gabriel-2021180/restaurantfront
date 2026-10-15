@@ -1,76 +1,299 @@
-/* src/index.css */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@fontsource-variable/figtree';
+@import '@fontsource-variable/bricolage-grotesque';
 
-/* =========================================
-   ESTILOS DE IMPRESIÓN TÉRMICA (80mm)
-   ========================================= */
-@media print {
-  
-  /* 🔥 1. LA CLAVE: ANULAR EL MODAL 🔥 */
-  /* Esto elimina la 'jaula' que crea el modal (transform y fixed) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Tokens del sistema "Aguayo", versión neutra (2026-10-13).
+ * Las acciones principales van en tinta (no en color); el color de marca
+ * (--brand, configurable por restaurante en BrandingProvider) queda para
+ * selección, foco y detalles. El color de estado solo marca lo que pide acción.
+ */
+:root,
+.light {
+  --brand: #9a5b43;
+  --brand-foreground: #ffffff;
+  --brand-dark: #c58a72;
+  --brand-dark-foreground: #191715;
+
+  --background: #f6f4f1;
+  --foreground: #2a2420;
+  --card: #ffffff;
+  --card-foreground: #2a2420;
+  --popover: #ffffff;
+  --popover-foreground: #2a2420;
+  --primary: #2a2420;
+  --primary-foreground: #f6f4f1;
+  --primary-soft: color-mix(in oklab, var(--brand) 10%, transparent);
+  --secondary: #f1eeea;
+  --secondary-foreground: #2a2420;
+  --muted: #f1eeea;
+  --muted-foreground: #736a63;
+  --accent: #f1eeea;
+  --accent-foreground: #2a2420;
+  --border: #e7e2dc;
+  --input: #e7e2dc;
+  --ring: var(--brand);
+
+  --success: #4f7462;
+  --warning: #85703f;
+  --destructive: #8a4455;
+  --destructive-foreground: #ffffff;
+  --info: #5d6475;
+
+  --radius: 0.75rem;
+  color-scheme: light;
+}
+
+.dark {
+  --background: #191715;
+  --foreground: #eee9e4;
+  --card: #221f1c;
+  --card-foreground: #eee9e4;
+  --popover: #221f1c;
+  --popover-foreground: #eee9e4;
+  --primary: #eee9e4;
+  --primary-foreground: #191715;
+  --primary-soft: color-mix(in oklab, var(--brand-dark) 14%, transparent);
+  --secondary: #2b2724;
+  --secondary-foreground: #eee9e4;
+  --muted: #2b2724;
+  --muted-foreground: #a39a92;
+  --accent: #2b2724;
+  --accent-foreground: #eee9e4;
+  --border: #36312d;
+  --input: #36312d;
+  --ring: var(--brand-dark);
+
+  --success: #8fb29d;
+  --warning: #c4ad7c;
+  --destructive: #cf95a4;
+  --destructive-foreground: #191715;
+  --info: #a7adbd;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: 'Figtree Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', 'Figtree Variable', ui-sans-serif, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-info: var(--info);
+
+  /* Compatibilidad temporal con las pantallas aún no migradas */
+  --color-primary-light: var(--primary);
+  --color-primary-dark: color-mix(in oklab, var(--primary) 85%, black);
+  --color-dark-bg: #191715;
+  --color-dark-card: #221f1c;
+  --color-dark-text: #eee9e4;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@layer base {
   * {
-    transform: none !important;       /* Rompe la dependencia del padre */
-    transition: none !important;      /* Quita animaciones */
-    box-shadow: none !important;      /* Limpia sombras */
+    @apply border-border outline-ring/50;
   }
-
-  /* Liberar el scroll del modal para que no corte el ticket */
-  .fixed, .absolute, .overflow-y-auto {
-    position: static !important;
-    overflow: visible !important;
+  html {
+    -webkit-tap-highlight-color: transparent;
   }
-
-  /* 2. Configuración de página */
-  @page {
-    size: 80mm auto;
-    margin: 0mm;
-  }
-
   body {
-    margin: 0;
-    padding: 0;
-    width: 80mm;
-    background-color: white;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-variant-numeric: tabular-nums;
   }
-
-  /* 3. Ocultar TODO (Modo Fantasma) */
-  body * {
-    visibility: hidden;
-    height: 0;
+  h1, h2, h3 {
+    @apply font-display;
+    letter-spacing: -0.02em;
   }
-
-  /* 4. Resucitar SOLO el Ticket */
-  #invoice-ticket-container,
-  #invoice-ticket-container * {
-    visibility: visible !important;
-    height: auto !important;
-    overflow: visible !important;
-    color: black !important; /* Forzar negro puro */
+  ::selection {
+    background: var(--primary-soft);
+    color: var(--foreground);
   }
-
-  /* 5. Posicionamiento del Ticket (Ahora sí funcionará bien) */
-  #invoice-ticket-container {
-    position: fixed !important; /* Al no haber transform, esto va al papel */
-    left: 0 !important;
-    top: 0 !important;
-    width: 72mm !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: white !important;
-    z-index: 9999999999 !important; /* Encima de Dios */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
-
-  /* Utilidades extra */
-  .no-print { display: none !important; }
-  
-  /* Excepción para fondos negros (Cocina) */
-  #invoice-ticket-container .bg-black {
-    background-color: black !important;
-    color: white !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  input, textarea {
+    caret-color: var(--primary);
+  }
+  /* iOS acerca la página al enfocar un campo con texto menor a 16px; en táctiles lo evitamos sin bloquear el zoom manual. */
+  @media (pointer: coarse) {
+    input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']),
+    textarea,
+    select {
+      font-size: max(16px, 1em);
+    }
   }
 }
 
+@utility aguayo-thread {
+  height: 2px;
+  background: color-mix(in oklab, var(--brand) 55%, var(--border));
+}
+
+/* Carga: brillo suave que recorre los bloques (sin parpadeo). */
+@utility skeleton-shimmer {
+  background: linear-gradient(
+      100deg,
+      color-mix(in oklab, var(--muted) 100%, transparent) 30%,
+      color-mix(in oklab, var(--card) 70%, var(--muted)) 50%,
+      color-mix(in oklab, var(--muted) 100%, transparent) 70%
+    )
+    var(--muted);
+  background-size: 300% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+/* Entrada de cada pantalla: corta y sutil, porque se navega muchas veces al día. */
+@utility page-enter {
+  animation: page-enter 220ms var(--ease-out) backwards;
+}
+
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Aparición escalonada de listas y grillas (máx. ~10 elementos con retraso). */
+@utility stagger-in {
+  & > * {
+    animation: page-enter 260ms var(--ease-out) backwards;
+  }
+  & > *:nth-child(1) { animation-delay: 0ms; }
+  & > *:nth-child(2) { animation-delay: 30ms; }
+  & > *:nth-child(3) { animation-delay: 60ms; }
+  & > *:nth-child(4) { animation-delay: 90ms; }
+  & > *:nth-child(5) { animation-delay: 120ms; }
+  & > *:nth-child(6) { animation-delay: 150ms; }
+  & > *:nth-child(7) { animation-delay: 180ms; }
+  & > *:nth-child(8) { animation-delay: 210ms; }
+  & > *:nth-child(n + 9) { animation-delay: 240ms; }
+}
+
+/* Check de "enviado a cocina": el trazo se dibuja tras un instante. */
+.sent-check {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw-check 320ms var(--ease-out) 80ms forwards;
+}
+
+@keyframes draw-check {
+  to { stroke-dashoffset: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Tickets (factura y comanda): papel térmico de 58 u 80 mm. Siempre negro sobre blanco,
+   también en la vista previa con tema oscuro. Ver features/print. */
+.ticket {
+  width: 100%;
+  max-width: 76mm;
+  margin-inline: auto;
+  padding: 3mm 3mm 4mm;
+  background: #fff;
+  color: #000;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  & p { margin: 0; }
+  & dl { margin: 0; }
+}
+.ticket-center { text-align: center; }
+.ticket-logo { display: block; max-height: 18mm; max-width: 40mm; margin: 0 auto 2mm; object-fit: contain; filter: grayscale(1); }
+.ticket-title { font-size: 15px; font-weight: 700; text-transform: uppercase; }
+.ticket-heading { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.ticket-small { font-size: 11px; }
+.ticket-legal { font-size: 10.5px; margin-top: 1.5mm !important; }
+.ticket-thanks { margin-top: 2mm !important; font-weight: 700; }
+.ticket-code { font-size: 11px; font-weight: 700; word-break: break-all; }
+.ticket-strong { font-weight: 700; }
+.ticket-rule { border: 0; border-top: 1px dashed #000; margin: 2mm 0; }
+.ticket-rule-light { border-top-style: dotted; }
+.ticket-void { margin: 1.5mm 0 !important; padding: 1mm; border: 1.5px solid #000; text-align: center; font-weight: 700; text-transform: uppercase; }
+.ticket-kv > div { display: flex; justify-content: space-between; gap: 3mm; }
+.ticket-kv dt { flex-shrink: 0; }
+.ticket-kv dd { margin: 0; text-align: right; font-weight: 700; }
+.ticket-row { display: flex; align-items: baseline; justify-content: space-between; gap: 2mm; }
+.ticket-qty { width: 7mm; flex-shrink: 0; }
+.ticket-name { flex: 1; min-width: 0; }
+.ticket-amount { flex-shrink: 0; text-align: right; }
+.ticket-item { margin-bottom: 1mm; }
+.ticket-sub { padding-left: 9mm; font-size: 11px; }
+.ticket-total { font-size: 15px; font-weight: 700; }
+.ticket-qr { display: block; margin: 1mm auto 2mm; }
+
+/* Comanda: se lee de lejos, por eso todo más grande. */
+.ticket-kitchen { font-size: 14px; }
+.ticket-place { font-size: 22px; font-weight: 800; line-height: 1.15; text-transform: uppercase; margin: 1mm 0 2mm !important; }
+.ticket-kitem { display: flex; gap: 2.5mm; padding: 1.5mm 0; border-bottom: 1px dotted #000; }
+.ticket-kitem:last-of-type { border-bottom: 0; }
+.ticket-kqty { min-width: 8mm; font-size: 20px; font-weight: 800; line-height: 1.1; text-align: right; }
+.ticket-kbody { flex: 1; min-width: 0; }
+.ticket-kname { font-size: 16px; font-weight: 700; line-height: 1.2; }
+.ticket-kpart { font-size: 13px; }
+.ticket-knote { display: inline-block; margin-top: 1mm !important; padding: 0.5mm 1.5mm; border: 1.5px solid #000; font-size: 13px; font-weight: 700; }
+
+#print-root { display: none; }
+
+@media print {
+  @page { margin: 0; }
+  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; min-height: 0 !important; }
+  /* Solo el ticket llega al papel: el resto de la app (y los portales de modales) se quita del flujo. */
+  body > :not(#print-root) { display: none !important; }
+  #print-root { display: block !important; }
+  #print-root .ticket { max-width: 80mm; margin: 0; padding: 2mm 3mm 6mm; }
+  .ticket * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* Cambio de tema: la vista nueva entra recortada en círculo (ver ThemeProvider). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}

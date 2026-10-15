@@ -22,7 +22,7 @@ i18n
     ns: ["translation", "tables"], // Declare namespaces
     defaultNS: "translation", // Default namespace
     fallbackLng: 'es', // Idioma por defecto
-    debug: true, // Add this line for debugging
+    debug: false,
     interpolation: { escapeValue: false }
   });
 

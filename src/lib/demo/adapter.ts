@@ -57,7 +57,7 @@ on('put', '/finance/config/qr', (_, { body }) => {
 })
 on('post', '/auth/login', (_, { body }) => {
   const user = db.users.find((u) => u.email === String(body.email).toLowerCase())
-  if (!user || body.password !== db.DEMO_PASSWORD) fail(401, 'Credenciales inválidas.', 'INVALID_CREDENTIALS')
+  if (!user || body.password !== (user.demo_password ?? db.DEMO_PASSWORD)) fail(401, 'Credenciales inválidas.', 'INVALID_CREDENTIALS')
   sessionStorage.setItem('demo-rt', user!.id)
   return { access_token: tokenFor(user!.id), user, access_expires_in: 900 }
 })
@@ -84,8 +84,9 @@ on('get', '/roles', () => {
 })
 on('get', '/users', () => db.users.map((u) => ({ created_at: '2026-01-10T12:00:00Z', is_banned: false, ...u })))
 on('patch', '/users/change-password', (_, ctx) => {
-  if (ctx.body.old_password !== db.DEMO_PASSWORD) fail(400, 'La contraseña actual no es correcta.', 'INVALID_PASSWORD')
-  return Object.assign(me(ctx), { is_password_temporary: false })
+  const u = me(ctx)
+  if (ctx.body.old_password !== (u.demo_password ?? db.DEMO_PASSWORD)) fail(400, 'La contraseña actual no es correcta.', 'INVALID_PASSWORD')
+  return Object.assign(u, { is_password_temporary: false, demo_password: String(ctx.body.new_password) })
 })
 on('patch', '/users/:id', ([id], { body }) => {
   const u = db.users.find((x) => x.id === id) ?? fail(404, 'Usuario no encontrado', 'USER_NOT_FOUND')

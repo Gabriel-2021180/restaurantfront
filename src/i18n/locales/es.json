@@ -898,7 +898,8 @@
     "weak": "La nueva contraseña no cumple los requisitos.",
     "same": "La nueva contraseña debe ser distinta de la temporal.",
     "mismatch": "Las contraseñas no coinciden.",
-    "logout": "Cerrar sesión"
+    "logout": "Cerrar sesión",
+    "relogin": "Vuelve a iniciar sesión con tu nueva contraseña."
   },
   "auth": {
     "login": {

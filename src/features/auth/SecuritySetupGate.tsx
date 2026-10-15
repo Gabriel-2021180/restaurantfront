@@ -25,7 +25,7 @@ export function SecuritySetupGate({ children }: { children: ReactNode }) {
 }
 
 function TemporaryPasswordGate() {
-  const { updateUser, logout } = useAuth()
+  const { user, login, updateUser, logout } = useAuth()
   const { t } = useTranslation()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
@@ -42,11 +42,21 @@ function TemporaryPasswordGate() {
     setError(null)
     setLoading(true)
     try {
-      const { data } = await api.patch<User>('/users/change-password', { old_password: current, new_password: next })
-      updateUser({ ...data, is_password_temporary: false })
-      toast.success(t('passwordChange.saved'))
+      await api.patch('/users/change-password', { old_password: current, new_password: next })
     } catch (err) {
       setError(getErrorMessage(err))
+      setLoading(false)
+      return
+    }
+    // La API invalida todas las sesiones al cambiar la contraseña (incluida esta):
+    // se vuelve a entrar con la nueva para no echar al usuario segundos después.
+    try {
+      const fresh = await login(user!.email, next)
+      updateUser({ ...fresh, is_password_temporary: false })
+      toast.success(t('passwordChange.saved'))
+    } catch {
+      toast.success(t('passwordChange.saved'), { description: t('passwordChange.relogin') })
+      logout()
     } finally {
       setLoading(false)
     }
